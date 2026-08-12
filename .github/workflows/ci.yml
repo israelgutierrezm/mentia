@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    name: Pruebas y análisis
+    runs-on: ubuntu-latest
+
+    services:
+      # MySQL 8 real, no SQLite: las migraciones del sistema usan CHECK
+      # constraints, llaves foráneas e índices compuestos que SQLite no sabe
+      # hacer. Probar en otro motor sería probar otro esquema.
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: mentia_testing
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          # pcntl y posix son los que Horizon exige y los que faltan en
+          # Windows: aquí sí están, así que la resolución de composer
+          # es la real y no la del override de plataforma.
+          extensions: mbstring, pdo_mysql, redis, gd, exif, pcntl, posix, zip
+          coverage: none
+
+      - name: Caché de composer
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Instalar dependencias PHP
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Preparar entorno
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Formato (Pint)
+        run: vendor/bin/pint --test
+
+      - name: Análisis estático (PHPStan nivel 6)
+        run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
+
+      - name: Migraciones
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: mentia_testing
+          DB_USERNAME: root
+          DB_PASSWORD: ''
+        run: php artisan migrate --force
+
+      - name: Pruebas
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USERNAME: root
+          DB_PASSWORD: ''
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+        run: php artisan test
+
+  frontend:
+    name: Compilación del frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # `npm run build` es la comprobación real del frontend: compila los
+      # componentes Vue de verdad. Un error de plantilla no aparece de otra
+      # forma hasta que alguien abre la pantalla.
+      - name: Compilar
+        run: npm run build

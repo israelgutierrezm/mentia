@@ -1,0 +1,29 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 6
+
+    paths:
+        - app
+        - config
+        - database
+        - routes
+        - tests
+
+    # Las migraciones publicadas por los paquetes (spatie, sanctum) son código
+    # de terceros que sólo vive aquí porque hay que versionarlo. Corregirles el
+    # tipado se perdería en la siguiente publicación.
+    excludePaths:
+        - database/migrations/*_create_permission_tables.php
+        - database/migrations/*_activity_log_table.php
+        - database/migrations/*_create_media_table.php
+        - database/migrations/*_personal_access_tokens_table.php
+
+    # El nivel 6 ya exige tipos en los genéricos: `array $respuestas` tiene que
+    # decir array DE QUÉ. Es justo la clase de error que un pipeline de
+    # calificación no debe poder cometer. (En PHPStan 2 esto va implícito en el
+    # nivel; las banderas checkMissingIterableValueType y
+    # checkGenericClassInNonGenericObjectType ya no existen.)
+
+    treatPhpDocTypesAsCertain: false
