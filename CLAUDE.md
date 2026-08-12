@@ -87,9 +87,12 @@ Todo el detalle está en `docs/convenciones.md`.
   sensibilidad, 4 tipos de organización, 24 plantillas de rol. Se **clonan** al
   crear el tenant.
 - **CRUDs web + API v1 espejo** para unidades, agrupaciones, miembros, personas
-  (alta con verificación CURP+fecha) y roles con alcances y vigencias.
-- **45 pruebas verdes**, incluidas 16 de AccesoService y 15 de aislamiento
-  cross-tenant. Todas comprobadas mutando el código que vigilan.
+  (alta con verificación CURP+fecha), **administración de roles** (permisos y
+  tope de sensibilidad), alcances con vigencia y **tutorías con su flujo de
+  validación**.
+- **71 pruebas verdes**: 16 de AccesoService, 15 de aislamiento cross-tenant,
+  15 de gestión de roles y 11 de tutorías. Todas comprobadas mutando el código
+  que vigilan.
 
 **Sigue la Fase 2** (M4): expediente config-driven y consentimientos. Prompt en
 `docs/08-plan-de-fases-y-prompts-claude-code.md`.

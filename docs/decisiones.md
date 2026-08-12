@@ -217,6 +217,41 @@ MySQL no admite identificadores más largos y la migración revienta **al crear 
 índice**, no al declararlo. Mordió con
 `persona_rol_alcances_persona_id_organizacion_id_vigencia_fin_index` (66).
 
+### Un rol con alcances vivos NO se borra
+
+`persona_rol_alcances.rol_id` tiene FK en cascada: borrar el rol se llevaría en
+silencio el registro de quién tenía acceso a qué. `GestorRoles::eliminar()` lo
+bloquea y pide retirar los alcances primero, que es una acción visible y
+auditable.
+
+### Salvaguarda de auto-encierro al editar un rol
+
+No puedes quitarle `roles.gestionar` al rol con el que estás trabajando. Si se
+permitiera, quien edita se queda sin forma de volver a esa pantalla — y si era
+el único rol con el permiso, la organización pierde la administración de roles
+y sólo se repara desde la consola.
+
+### Nadie valida su propia tutoría
+
+Una tutoría vigente abre el expediente psicológico de un menor a otra persona.
+El registro nace `pendiente_validacion` y **no da acceso**; la acreditación es
+un acto separado de alguien con `tutorias.validar`, que queda con nombre en
+`validada_por`.
+
+Sin la regla de que el validador no puede ser el propio tutor, el autorregistro
+sería una puerta abierta: cualquiera declara ser la madre de un menor, se valida
+solo y se lleva su expediente.
+
+Re-registrar una tutoría revocada **reescribe la misma fila** (vuelve a
+pendiente) en vez de crear otra: el único de (tutor, menor) lo impide, y
+borrarla para re-acreditar a la misma madre destruiría historia.
+
+### Los permisos se validan contra el catálogo del CÓDIGO, no contra la tabla
+
+`GuardaRolRequest` usa `Rule::in(CatalogoPermisos::claves())`. Si alguien sembró
+de más en `permissions`, ese permiso no lo consulta nadie: concederlo no protege
+nada y sólo confunde a quien configura el rol.
+
 ### Una prueba de aislamiento pasaba por la razón equivocada
 
 `test_el_encabezado_x_organizacion_no_sirve...` pasaba **igual** con la

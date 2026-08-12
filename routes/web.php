@@ -7,6 +7,8 @@ use App\Http\Controllers\Web\AlcanceController;
 use App\Http\Controllers\Web\MiembroAgrupacionController;
 use App\Http\Controllers\Web\PanelController;
 use App\Http\Controllers\Web\PersonaController;
+use App\Http\Controllers\Web\RolController;
+use App\Http\Controllers\Web\TutoriaController;
 use App\Http\Controllers\Web\UnidadController;
 use Illuminate\Support\Facades\Route;
 
@@ -64,8 +66,23 @@ Route::middleware(['auth', 'organizacion'])->group(function (): void {
      */
     Route::get('personas/{persona}', [PersonaController::class, 'show'])->name('personas.show');
 
+    // ── Tutorías ──────────────────────────────────────────────────────────
+    Route::middleware('can:tutorias.validar')->group(function (): void {
+        Route::get('tutorias', [TutoriaController::class, 'index'])->name('tutorias.index');
+        Route::post('tutorias', [TutoriaController::class, 'store'])->name('tutorias.store');
+        Route::post('tutorias/{tutoria}/validar', [TutoriaController::class, 'validar'])
+            ->name('tutorias.validar');
+        Route::post('tutorias/{tutoria}/revocar', [TutoriaController::class, 'revocar'])
+            ->name('tutorias.revocar');
+    });
+
     // ── Accesos ───────────────────────────────────────────────────────────
     Route::middleware('can:roles.gestionar')->group(function (): void {
+        Route::get('roles', [RolController::class, 'index'])->name('roles.index');
+        Route::post('roles', [RolController::class, 'store'])->name('roles.store');
+        Route::put('roles/{rol}', [RolController::class, 'update'])->name('roles.update');
+        Route::delete('roles/{rol}', [RolController::class, 'destroy'])->name('roles.destroy');
+
         Route::get('alcances', [AlcanceController::class, 'index'])->name('alcances.index');
         Route::post('alcances', [AlcanceController::class, 'store'])->name('alcances.store');
         Route::delete('alcances/{alcance}', [AlcanceController::class, 'destroy'])
