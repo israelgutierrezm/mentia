@@ -19,6 +19,9 @@ use Illuminate\Database\Eloquent\Model;
  *
  * Los modelos de paquetes (Spatie, medialibrary) NO heredan de aquí: sus
  * tablas son suyas y usan las columnas en inglés.
+ *
+ * @property \Illuminate\Support\Carbon|null $creado_en
+ * @property \Illuminate\Support\Carbon|null $actualizado_en
  */
 abstract class Modelo extends Model
 {

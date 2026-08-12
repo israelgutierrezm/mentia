@@ -2,7 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Web\AgrupacionController;
+use App\Http\Controllers\Web\AlcanceController;
+use App\Http\Controllers\Web\MiembroAgrupacionController;
 use App\Http\Controllers\Web\PanelController;
+use App\Http\Controllers\Web\PersonaController;
+use App\Http\Controllers\Web\UnidadController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -18,3 +23,52 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', PanelController::class)->name('panel');
+
+/*
+ * Todo lo que toca datos de tenant va detrás de `auth` + `organizacion`.
+ * El middleware de organización comprueba que el actor esté vinculado antes
+ * de fijar el contexto; sin él, los global scopes no tienen contra qué
+ * filtrar y —al fallar cerrado— las pantallas saldrían vacías.
+ */
+Route::middleware(['auth', 'organizacion'])->group(function (): void {
+    // ── Organización ──────────────────────────────────────────────────────
+    Route::middleware('can:unidades.gestionar')->group(function (): void {
+        Route::get('unidades', [UnidadController::class, 'index'])->name('unidades.index');
+        Route::post('unidades', [UnidadController::class, 'store'])->name('unidades.store');
+        Route::put('unidades/{unidad}', [UnidadController::class, 'update'])->name('unidades.update');
+    });
+
+    Route::middleware('can:agrupaciones.gestionar')->group(function (): void {
+        Route::get('agrupaciones', [AgrupacionController::class, 'index'])->name('agrupaciones.index');
+        Route::post('agrupaciones', [AgrupacionController::class, 'store'])->name('agrupaciones.store');
+        Route::put('agrupaciones/{agrupacion}', [AgrupacionController::class, 'update'])
+            ->name('agrupaciones.update');
+
+        Route::post('agrupaciones/{agrupacion}/miembros', [MiembroAgrupacionController::class, 'store'])
+            ->name('agrupaciones.miembros.store');
+        Route::delete('agrupaciones/{agrupacion}/miembros/{miembro}', [MiembroAgrupacionController::class, 'destroy'])
+            ->name('agrupaciones.miembros.destroy');
+    });
+
+    // ── Personas ──────────────────────────────────────────────────────────
+    Route::get('personas', [PersonaController::class, 'index'])
+        ->middleware('can:personas.ver')->name('personas.index');
+    Route::post('personas', [PersonaController::class, 'store'])
+        ->middleware('can:personas.crear')->name('personas.store');
+
+    /*
+     * La ficha NO lleva `can:`. Quien decide es AccesoService dentro del
+     * controller, porque aquí no basta el permiso: hacen falta también el
+     * alcance, la sensibilidad y el consentimiento, y el titular llega a la
+     * suya sin ningún permiso.
+     */
+    Route::get('personas/{persona}', [PersonaController::class, 'show'])->name('personas.show');
+
+    // ── Accesos ───────────────────────────────────────────────────────────
+    Route::middleware('can:roles.gestionar')->group(function (): void {
+        Route::get('alcances', [AlcanceController::class, 'index'])->name('alcances.index');
+        Route::post('alcances', [AlcanceController::class, 'store'])->name('alcances.store');
+        Route::delete('alcances/{alcance}', [AlcanceController::class, 'destroy'])
+            ->name('alcances.destroy');
+    });
+});

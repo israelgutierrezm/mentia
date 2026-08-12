@@ -32,8 +32,10 @@ re-diseñar el dominio: implementarlo.
 | 07 | Especificación API v1 |
 | 08 | Plan de fases y prompts |
 | `convenciones.md` | Cómo se escribe el código (producido en la Fase 0) |
+| `decisiones.md` | Ambigüedades resueltas y desviaciones, con su porqué |
 
-Cuando la spec tenga una ambigüedad, **preguntar en vez de inventar**.
+Cuando la spec tenga una ambigüedad, **preguntar en vez de inventar** y anotar
+la resolución en `docs/decisiones.md`.
 
 ## Stack
 
@@ -70,7 +72,29 @@ Todo el detalle está en `docs/convenciones.md`.
 
 ## Estado
 
-**Fase 0 completa** (fundación). Lo que hay:
+**Fase 1 completa** (M1–M3: organizaciones, personas y accesos).
+
+- **Modelo de datos M1–M3** conforme al Doc 03, con una desviación documentada
+  (la relación persona↔cuenta va sólo en `users.persona_id`).
+- **AccesoService** con las cuatro dimensiones en cortocircuito y bitácora en
+  toda decisión. El consentimiento es un contrato con implementación
+  provisional que retorna `pendiente`; **pendiente deja pasar** y queda marcado
+  distinto en bitácora. La Fase 2 sustituye el binding.
+- **Aislamiento de tenant**: `ContextoOrganizacion` (singleton) + global scope
+  que **falla cerrado** + middleware que comprueba vinculación antes de aceptar
+  `X-Organizacion`.
+- **Seeds**: 25 permisos en `CatalogoPermisos` (código, no base), 4 niveles de
+  sensibilidad, 4 tipos de organización, 24 plantillas de rol. Se **clonan** al
+  crear el tenant.
+- **CRUDs web + API v1 espejo** para unidades, agrupaciones, miembros, personas
+  (alta con verificación CURP+fecha) y roles con alcances y vigencias.
+- **45 pruebas verdes**, incluidas 16 de AccesoService y 15 de aislamiento
+  cross-tenant. Todas comprobadas mutando el código que vigilan.
+
+**Sigue la Fase 2** (M4): expediente config-driven y consentimientos. Prompt en
+`docs/08-plan-de-fases-y-prompts-claude-code.md`.
+
+### Fase 0 (fundación). Lo que hay:
 
 - Laravel 12 + Inertia + Vue 3 + Vite, con `LayoutAdmin.vue` y la página
   `Panel`. El panel real se arma por tarjetas declaradas con su permiso en la
@@ -86,13 +110,10 @@ Todo el detalle está en `docs/convenciones.md`.
 - Pint, PHPStan nivel 6 (sin baseline) y CI con MySQL 8 + Redis 7.
 - 13 pruebas verdes.
 
-**Sin lógica de negocio todavía.** Los directorios `Modelos/` y `Servicios/` de
-cada dominio están vacíos a propósito.
+## Decisiones tomadas (no re-litigar)
 
-**Sigue la Fase 1** (M1–M3): organizaciones, personas y accesos. Prompt en
-`docs/08-plan-de-fases-y-prompts-claude-code.md`.
-
-## Decisiones tomadas en la Fase 0 (no re-litigar)
+El detalle completo, con el porqué de cada una, está en **`docs/decisiones.md`**.
+Las que más se olvidan:
 
 - **`admin-base` no existía.** El Doc 02 §8 la describe como "ya planeada"; no
   hay repo ni referencia en el ecosistema. El shell administrativo se construyó
@@ -113,6 +134,21 @@ cada dominio están vacíos a propósito.
 - **Las pruebas corren en MySQL**, no en SQLite, desde la Fase 0 — aunque
   todavía no haya migraciones que lo exijan. Cambiar de motor a medio proyecto
   es lo que obliga a reescribir migraciones.
+- **La relación persona↔cuenta va sólo en `users.persona_id`** (NOT NULL,
+  única). El Doc 03 la declara en las dos direcciones; un 1:1 guardado dos veces
+  son dos columnas que pueden divergir. Es la única desviación del diccionario.
+- **El global scope de tenant falla CERRADO**: sin organización activa no
+  devuelve nada. Un seeder, un job o un comando que necesite ver todo lo pide
+  con `ContextoOrganizacion::sinRestriccion()`.
+- **`personas` es global y no tiene global scope.** Los listados paginan sobre
+  `organizacion_personas`, y todo endpoint que reciba un `persona_uuid`
+  comprueba la vinculación activa. Consultar `personas` directo devuelve el
+  padrón de toda la plataforma.
+- **`bitacora` no lleva llaves foráneas** y no se actualiza ni se borra. Tiene
+  que sobrevivir al borrado de lo que registra: es la evidencia que la LFPDPPP
+  obliga a conservar.
+- **El consentimiento "pendiente" DEJA PASAR** hasta la Fase 2, y cada acceso
+  concedido así queda en bitácora con motivo propio.
 
 ## Entorno local
 

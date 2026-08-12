@@ -16,6 +16,14 @@ use Spatie\Permission\Models\Role;
  *
  * Sus sellos de tiempo siguen en inglés (`created_at`) porque la tabla `roles`
  * es del paquete y su migración es suya.
+ *
+ * `organizacion_id` es el team de Spatie: la columna la crea la migración del
+ * paquete leyendo config('permission.column_names.team_foreign_key'), así que
+ * no aparece en ninguna clase y hay que declararla aquí.
+ *
+ * @property int $id
+ * @property string $name
+ * @property int|null $organizacion_id
  */
 class Rol extends Role
 {

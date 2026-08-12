@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Domain\Accesos\CatalogoPermisos;
+use App\Models\User;
 use App\Soporte\Multitenencia\ContextoOrganizacion;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -32,6 +35,35 @@ class AppServiceProvider extends ServiceProvider
         $this->configurarEsquema();
         $this->configurarEloquent();
         $this->configurarLimites();
+        $this->configurarAutorizacion();
+    }
+
+    /**
+     * Hace que el `can:` de Laravel resuelva contra los permisos de la PERSONA.
+     *
+     * Los roles cuelgan de `personas`, no de `users` (Doc 03 §M3), así que el
+     * `permission:` de Spatie —que mira el modelo autenticado— no sirve aquí:
+     * daría siempre false y todas las pantallas responderían 403.
+     *
+     * Sólo intercepta las llaves del catálogo. Devolver null para el resto
+     * deja pasar a las policies y a los gates que se definan después; si esto
+     * contestara a todo, un `Gate::define` propio quedaría muerto sin aviso.
+     */
+    private function configurarAutorizacion(): void
+    {
+        Gate::before(function (User $usuario, string $habilidad): ?bool {
+            if (! CatalogoPermisos::existe($habilidad)) {
+                return null;
+            }
+
+            $persona = $usuario->persona;
+
+            if ($persona === null) {
+                return false;
+            }
+
+            return $persona->hasPermissionTo($habilidad, 'web');
+        });
     }
 
     /**

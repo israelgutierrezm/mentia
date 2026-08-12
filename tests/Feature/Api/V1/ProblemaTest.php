@@ -31,17 +31,27 @@ class ProblemaTest extends TestCase
 
     public function test_el_detalle_de_un_404_no_confirma_si_el_recurso_existe(): void
     {
-        $respuesta = $this->getJson('/api/v1/personas/00000000-0000-0000-0000-000000000000');
+        $respuesta = $this->getJson('/api/v1/catalogo/instrumentos/9999');
 
         /*
          * "no existe O no está a tu alcance" es deliberado: distinguir los dos
-         * casos le diría a quien pregunta que esa persona SÍ está evaluada
-         * aquí, que es justo lo que el Doc 06 no permite filtrar.
+         * casos le diría a quien pregunta que ese recurso SÍ está aquí, que es
+         * justo lo que el Doc 06 no permite filtrar.
          */
+        $respuesta->assertNotFound();
         $respuesta->assertJsonPath(
             'detail',
             'El recurso solicitado no existe o no está a tu alcance.'
         );
+    }
+
+    public function test_una_peticion_sin_token_no_dice_si_el_endpoint_tiene_datos(): void
+    {
+        $respuesta = $this->getJson('/api/v1/unidades');
+
+        $respuesta->assertUnauthorized();
+        $respuesta->assertHeader('Content-Type', 'application/problem+json');
+        $respuesta->assertJsonPath('title', 'No autenticado');
     }
 
     public function test_la_web_no_responde_problem_json(): void

@@ -2,7 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\AgrupacionController;
+use App\Http\Controllers\Api\V1\AlcanceController;
 use App\Http\Controllers\Api\V1\EstadoController;
+use App\Http\Controllers\Api\V1\PersonaController;
+use App\Http\Controllers\Api\V1\UnidadController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -18,18 +22,48 @@ use Illuminate\Support\Facades\Route;
 | dominio; si un endpoint de API necesita lógica que el web no tiene, es que
 | la lógica está en el controller y no en el dominio.
 |
-| Rutas públicas: sólo estado y el canje de token anónimo. Todo lo demás pasa
-| por sanctum y, cuando toca datos de una persona, por AccesoService.
+| El encabezado `X-Organizacion` selecciona el tenant activo (Doc 07 §1) y lo
+| resuelve el middleware `organizacion`, que además comprueba que el actor
+| esté vinculado a ella.
 |
 */
 
 Route::get('estado', EstadoController::class)->name('estado');
 
-/*
- * Fase 1 en adelante. El encabezado X-Organizacion selecciona el tenant
- * activo y lo resuelve el middleware de tenant (Doc 07 §1).
- *
- * Route::middleware(['auth:sanctum', 'organizacion'])->group(function (): void {
- *     ...
- * });
- */
+Route::middleware(['auth:sanctum', 'organizacion'])->group(function (): void {
+    // ── Organización ──────────────────────────────────────────────────────
+    Route::middleware('can:unidades.gestionar')->group(function (): void {
+        Route::get('unidades', [UnidadController::class, 'index'])->name('unidades.index');
+        Route::post('unidades', [UnidadController::class, 'store'])->name('unidades.store');
+        Route::put('unidades/{unidad}', [UnidadController::class, 'update'])->name('unidades.update');
+    });
+
+    Route::middleware('can:agrupaciones.gestionar')->group(function (): void {
+        Route::get('agrupaciones', [AgrupacionController::class, 'index'])->name('agrupaciones.index');
+        Route::post('agrupaciones', [AgrupacionController::class, 'store'])->name('agrupaciones.store');
+        Route::put('agrupaciones/{agrupacion}', [AgrupacionController::class, 'update'])
+            ->name('agrupaciones.update');
+
+        Route::post('agrupaciones/{agrupacion}/miembros', [AgrupacionController::class, 'inscribir'])
+            ->name('agrupaciones.miembros.store');
+        Route::delete('agrupaciones/{agrupacion}/miembros/{miembro}', [AgrupacionController::class, 'darDeBaja'])
+            ->name('agrupaciones.miembros.destroy');
+    });
+
+    // ── Personas ──────────────────────────────────────────────────────────
+    Route::get('personas', [PersonaController::class, 'index'])
+        ->middleware('can:personas.ver')->name('personas.index');
+    Route::post('personas', [PersonaController::class, 'store'])
+        ->middleware('can:personas.crear')->name('personas.store');
+
+    // Sin `can:`: decide AccesoService con las cuatro dimensiones.
+    Route::get('personas/{persona}', [PersonaController::class, 'show'])->name('personas.show');
+
+    // ── Accesos ───────────────────────────────────────────────────────────
+    Route::middleware('can:roles.gestionar')->group(function (): void {
+        Route::get('alcances', [AlcanceController::class, 'index'])->name('alcances.index');
+        Route::post('alcances', [AlcanceController::class, 'store'])->name('alcances.store');
+        Route::delete('alcances/{alcance}', [AlcanceController::class, 'destroy'])
+            ->name('alcances.destroy');
+    });
+});
