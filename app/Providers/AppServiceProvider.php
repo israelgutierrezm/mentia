@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Soporte\Multitenencia\ContextoOrganizacion;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -14,13 +17,56 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        /*
+         * SINGLETON, no binding normal. Si cada `app(ContextoOrganizacion)`
+         * devolviera una instancia nueva, el middleware fijaría la
+         * organización en una y el global scope leería otra vacía: todas las
+         * consultas de tenant devolverían cero filas y nadie entendería por
+         * qué.
+         */
+        $this->app->singleton(ContextoOrganizacion::class);
     }
 
     public function boot(): void
     {
+        $this->configurarEsquema();
         $this->configurarEloquent();
         $this->configurarLimites();
+    }
+
+    /**
+     * Macros de Blueprint que fijan las convenciones del Doc 03 en las
+     * migraciones.
+     */
+    private function configurarEsquema(): void
+    {
+        /*
+         * "Todas las tablas llevan creado_en, actualizado_en" (Doc 03,
+         * encabezado). Como macro y no a mano en cada migración: escribirlos
+         * uno por uno es como una tabla termina con `created_at` en inglés y
+         * el modelo dejando de registrar la fecha sin que nada falle.
+         */
+        Blueprint::macro('sellosDeTiempo', function (): void {
+            /** @var Blueprint $this */
+            $this->timestamp('creado_en')->nullable();
+            $this->timestamp('actualizado_en')->nullable();
+        });
+
+        /*
+         * Discriminador de tenant con su índice. La columna sola no basta: sin
+         * índice, cada consulta filtrada por organización barre la tabla
+         * completa, y `respuestas` se proyecta en decenas de millones de filas.
+         */
+        Blueprint::macro('organizacion', function (bool $nullable = false): void {
+            /** @var Blueprint $this */
+            $columna = $this->foreignId('organizacion_id');
+
+            if ($nullable) {
+                $columna->nullable();
+            }
+
+            $columna->constrained('organizaciones')->cascadeOnDelete();
+        });
     }
 
     private function configurarEloquent(): void
@@ -36,6 +82,15 @@ class AppServiceProvider extends ServiceProvider
 
         // Nada de destruir tablas por accidente desde un comando de consola.
         Model::preventLazyLoading(! $this->app->isProduction());
+
+        /*
+         * Los modelos viven en app/Domain/<Dominio>/Modelos/, no en app/Models,
+         * así que la convención de Laravel para encontrar su factory no aplica.
+         * Se resuelve por nombre de clase: Persona → PersonaFactory.
+         */
+        Factory::guessFactoryNamesUsing(
+            static fn (string $modelo): string => 'Database\\Factories\\'.class_basename($modelo).'Factory'
+        );
     }
 
     private function configurarLimites(): void

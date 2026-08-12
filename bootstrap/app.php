@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Api\Problema;
 use App\Http\Middleware\CompartirConInertia;
+use App\Http\Middleware\ResolverOrganizacion;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -49,6 +50,16 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->throttleApi();
+
+        /*
+         * Toda ruta que toque datos de tenant lleva `organizacion`. No va como
+         * middleware global porque hay rutas que existen ANTES de que haya
+         * organización activa: el login, el conmutador de organización y el
+         * canje de token anónimo.
+         */
+        $middleware->alias([
+            'organizacion' => ResolverOrganizacion::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         /*

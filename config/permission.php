@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Domain\Accesos\Modelos\Rol;
 use Spatie\Permission\DefaultTeamResolver;
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 return [
 
@@ -30,7 +30,11 @@ return [
          * `Spatie\Permission\Contracts\Role` contract.
          */
 
-        'role' => Role::class,
+        /*
+         * Nuestro Rol hereda del de Spatie y le agrega el tope de sensibilidad
+         * (dimensión 3 de la autorización, Doc 06 §1), que el paquete no tiene.
+         */
+        'role' => Rol::class,
 
         /*
          * En Mentia el "team" de Spatie es la ORGANIZACIÓN (tenant). El modelo
