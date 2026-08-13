@@ -336,3 +336,79 @@ hace que PHPStan infiera `null` en la segunda. La solución no fue forzar el
 tipo: se partió la prueba en tres —una conducta cada una— y aparecieron dos
 casos que la original no cubría (que el vigente sea la mayor versión
 **validada**, y que una corrección sin validar no desplace al dato bueno).
+
+---
+
+## Fase 3 — Catálogo de instrumentos
+
+### Categorías y subcategorías en una sola tabla
+
+El Doc 03 §M5 las nombra por separado pero les da el mismo esquema con
+`padre_id nullable`. Dos tablas idénticas obligarían a duplicar cada consulta y
+a decidir en cada punto cuál mirar.
+
+### Lo que se congela al publicar es el CONTENIDO, no el estado
+
+`PublicadorVersion::exigirEditable()` es la comprobación que todo servicio de
+contenido debe hacer. Impedir que cambie el enum `estado` no protegería nada:
+lo que rompe la reproducibilidad de una aplicación de hace dos años es que
+cambien sus reactivos, sus claves o sus baremos.
+
+Publicar valida además que la versión sirva para algo: sin reactivos, con una
+escala que nunca puntúa o con una fórmula que cita una escala inexistente, cada
+caso produce una aplicación que falla delante de la persona evaluada en vez de
+fallar al publicar.
+
+### Las fórmulas derivadas se validan con lista blanca, nunca con eval()
+
+Van sobre CLAVES de escala y se comprueban al publicar con una expresión
+regular que sólo admite identificadores, números, `+ - * /` y paréntesis, más
+la verificación de que cada identificador sea una escala de esa versión.
+
+Las expresiones llegan de una hoja de Excel que sube un tenant. Evaluarlas con
+`eval()` sería ejecución remota de código servida desde un archivo adjunto. Hay
+prueba con `system("rm -rf /")`.
+
+### Corregir una versión publicada es clonarla
+
+`ClonadorContenidoVersion` copia escalas, bloques, reactivos, opciones, claves,
+fórmulas, baremos e interpretaciones a un borrador nuevo. Sin esto, una errata
+obligaría a recapturar el instrumento entero y la presión por editar la
+publicada sería irresistible. El clon **conserva el ámbito del contenido
+privado**.
+
+### La ficha del catálogo nunca incluye reactivos
+
+Sólo su CONTEO. Un endpoint de catálogo que devolviera los enunciados completos
+sería la forma más cómoda de descargarse una prueba con copyright; el contenido
+sale parcelado durante la aplicación (Doc 06 §3).
+
+### Declarar licencia deja `pendiente_contenido`, no `habilitado`
+
+Declarar no pone los reactivos. Habilitarlo ahí dejaría asignable una prueba
+vacía y alguien se sentaría a contestar una pantalla en blanco.
+
+Se guarda el TEXTO firmado, quién y cuándo — no un booleano. Ante una
+reclamación editorial, "el tenant marcó una casilla" no es defensa.
+
+### El importador valida todo antes de escribir nada
+
+Transacción con rollback ante un solo error. Una importación a medias deja un
+instrumento con reactivos y sin claves: publica, se asigna y puntúa cero sin que
+nadie lo note. Es peor que no haber importado.
+
+Las referencias de la plantilla van por CLAVE, no por id: la llena una persona
+en Excel, y pedirle ids obligaría a importar por pasos copiando números entre
+hojas.
+
+**Bug que mordió:** el importador reventaba con "Undefined array key" cuando la
+plantilla no traía una columna opcional —lo normal, quien captura borra las que
+no usa—. Eso convertía el reporte fila a fila en un error fatal. Todas las
+columnas opcionales se leen ahora con un lector tolerante.
+
+### Una prueba del envoltorio de error se rompió dos veces por apuntar a rutas reales
+
+`test_el_detalle_de_un_404_no_confirma_si_el_recurso_existe` apuntaba primero a
+`/api/v1/personas/{uuid}` y luego a `/api/v1/catalogo/...`. Cada vez que esa
+ruta se implementó, la prueba empezó a medir un 401 de autenticación en vez de
+un 404. Ahora apunta a una ruta que ninguna fase va a definir.

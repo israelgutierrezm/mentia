@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Web\AgrupacionController;
 use App\Http\Controllers\Web\AlcanceController;
+use App\Http\Controllers\Web\CatalogoController;
 use App\Http\Controllers\Web\ConsentimientoController;
 use App\Http\Controllers\Web\ExpedienteController;
+use App\Http\Controllers\Web\HabilitacionController;
 use App\Http\Controllers\Web\MiembroAgrupacionController;
 use App\Http\Controllers\Web\PanelController;
 use App\Http\Controllers\Web\PersonaController;
@@ -92,6 +94,19 @@ Route::middleware(['auth', 'organizacion'])->group(function (): void {
         ->name('expediente.show');
     Route::post('personas/{persona}/expediente/valores', [ExpedienteController::class, 'store'])
         ->middleware('can:expediente.editar')->name('expediente.store');
+
+    // ── Catálogo ──────────────────────────────────────────────────────────
+    Route::get('catalogo', [CatalogoController::class, 'index'])->name('catalogo.index');
+    Route::get('catalogo/{clave}', [CatalogoController::class, 'show'])->name('catalogo.show');
+
+    Route::middleware('can:instrumentos.habilitar')->group(function (): void {
+        Route::get('habilitacion', [HabilitacionController::class, 'index'])
+            ->name('habilitacion.index');
+        Route::post('habilitacion/{version}/habilitar', [HabilitacionController::class, 'habilitar'])
+            ->name('habilitacion.habilitar');
+        Route::post('habilitacion/{version}/declaracion', [HabilitacionController::class, 'declararLicencia'])
+            ->name('habilitacion.declaracion');
+    });
 
     // ── Tutorías ──────────────────────────────────────────────────────────
     Route::middleware('can:tutorias.validar')->group(function (): void {

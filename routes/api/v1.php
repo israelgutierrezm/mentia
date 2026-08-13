@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AgrupacionController;
 use App\Http\Controllers\Api\V1\AlcanceController;
+use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\EstadoController;
 use App\Http\Controllers\Api\V1\ExpedienteController;
 use App\Http\Controllers\Api\V1\PersonaController;
 use App\Http\Controllers\Api\V1\RolController;
+use App\Http\Controllers\Api\V1\TenantInstrumentoController;
 use App\Http\Controllers\Api\V1\TutoriaController;
 use App\Http\Controllers\Api\V1\UnidadController;
 use Illuminate\Support\Facades\Route;
@@ -80,6 +82,27 @@ Route::middleware(['auth:sanctum', 'organizacion'])->group(function (): void {
         Route::post('tutorias/{tutoria}/revocar', [TutoriaController::class, 'revocar'])
             ->name('tutorias.revocar');
     });
+
+    // ── Catálogo (Doc 07 §3) ──────────────────────────────────────────────
+    // La ficha NUNCA incluye reactivos: el contenido sale parcelado durante la
+    // aplicación (Doc 06 §3, protección de contenido).
+    Route::get('catalogo/instrumentos', [CatalogoController::class, 'index'])
+        ->name('catalogo.instrumentos.index');
+    Route::get('catalogo/instrumentos/{clave}', [CatalogoController::class, 'show'])
+        ->name('catalogo.instrumentos.show');
+
+    Route::middleware('can:instrumentos.habilitar')->group(function (): void {
+        Route::get('tenant/instrumentos', [TenantInstrumentoController::class, 'index'])
+            ->name('tenant.instrumentos.index');
+        Route::post('tenant/instrumentos/{version}/habilitar', [TenantInstrumentoController::class, 'habilitar'])
+            ->name('tenant.instrumentos.habilitar');
+        Route::post('tenant/instrumentos/{version}/declaracion-licencia', [TenantInstrumentoController::class, 'declararLicencia'])
+            ->name('tenant.instrumentos.declaracion');
+    });
+
+    Route::post('tenant/instrumentos/{version}/contenido/importar', [TenantInstrumentoController::class, 'importarContenido'])
+        ->middleware('can:instrumentos.capturar_contenido')
+        ->name('tenant.instrumentos.importar');
 
     // ── Accesos ───────────────────────────────────────────────────────────
     Route::middleware('can:roles.gestionar')->group(function (): void {

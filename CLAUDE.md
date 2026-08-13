@@ -72,7 +72,7 @@ Todo el detalle está en `docs/convenciones.md`.
 
 ## Estado
 
-**Fases 0, 1 y 2 completas.** 94 pruebas verdes, Pint limpio, PHPStan nivel 6
+**Fases 0, 1, 2 y 3 completas.** 119 pruebas verdes, Pint limpio, PHPStan nivel 6
 sin errores, `npm run build` OK.
 
 **Fase 2 (M4) — expediente y consentimientos:**
@@ -95,10 +95,23 @@ sin errores, `npm run build` OK.
   `routes/console.php`.
 - Portal `/mi-expediente` del titular y endpoints `/api/v1` del Doc 07 §2.
 
-**Sigue la Fase 3** (M5): catálogo de instrumentos. Prompt en
-`docs/08-plan-de-fases-y-prompts-claude-code.md`. Es el modelo de datos más
-grande de la spec (~20 tablas) y depende del Doc 03 §M5, el Doc 04 y el
-Doc 05 §2.
+**Fase 3 (M5) — catálogo de instrumentos:**
+
+- 21 tablas y 21 modelos. Todo global salvo `tenant_instrumentos`.
+- `PublicadorVersion::exigirEditable()` es la comprobación que TODO servicio de
+  contenido debe hacer antes de escribir. Publicar valida que haya reactivos,
+  que ninguna escala quede sin claves y que las fórmulas sólo citen escalas
+  existentes; las fórmulas se validan con **lista blanca**, nunca con `eval()`.
+- Corregir una versión publicada es **clonarla** a un borrador.
+- `Reactivo::scopeDeContenidoVisiblePara()` es el punto único del contenido
+  privado: lo que un tenant capturó bajo su licencia nunca se sirve a otro.
+- Importador de la plantilla Excel del Doc 04 con **reporte hoja/fila/columna**
+  y rollback total ante un solo error.
+- Paneles de catálogo y de habilitación, más los endpoints del Doc 07 §3.
+
+**Sigue la Fase 4** (seed Ola 1) — pero está bloqueada, ver abajo. Si se
+prefiere avanzar, la **Fase 5** (M6: asignaciones y baterías) no depende de
+ella.
 
 **Dos bloqueos estructurales más adelante, ya identificados:**
 

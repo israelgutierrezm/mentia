@@ -31,7 +31,13 @@ class ProblemaTest extends TestCase
 
     public function test_el_detalle_de_un_404_no_confirma_si_el_recurso_existe(): void
     {
-        $respuesta = $this->getJson('/api/v1/catalogo/instrumentos/9999');
+        /*
+         * Una ruta que NO existe bajo /api/v1. Se eligió a propósito una que
+         * ninguna fase va a definir: apuntar a un recurso real hace que la
+         * prueba empiece a medir otra cosa —un 401 de autenticación— en cuanto
+         * ese endpoint se implementa. Ya pasó con /personas y con /catalogo.
+         */
+        $respuesta = $this->getJson('/api/v1/ruta-que-nunca-existira/9999');
 
         /*
          * "no existe O no está a tu alcance" es deliberado: distinguir los dos
