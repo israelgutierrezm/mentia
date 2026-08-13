@@ -664,3 +664,157 @@ El glob de `app.js` dejó de ser `eager`. Con un solo paquete, quien entraba a
 —baterías con su librería de arrastre, catálogo, roles: 540 kB— para ver cinco
 reactivos. La pantalla pública es justamente la que peor red tiene. Ahora son
 19 kB.
+
+## Fase 7 — Pipeline de calificación e interpretación
+
+### El pipeline se DESCRIBE, no se programa
+
+`instrumento_pipeline` dice qué etapas corre cada versión de instrumento y con
+qué estrategia, y `instrumento_pipeline_parametros` —tabla hija, no columna
+JSON— guarda sus umbrales. Un PHQ-9 suma; un Cleaver hace conteo ipsativo y
+luego fórmulas derivadas; un M-CHAT pasa por un algoritmo de dos etapas. Los
+tres recorren el MISMO pipeline y sólo cambian sus filas.
+
+Sin esto, cada instrumento nuevo sería una rama en el motor, y el motor acabaría
+siendo un `switch` de doscientos casos que nadie se atreve a tocar.
+
+`RegistroEstrategias` falla RUIDOSO ante una clave desconocida y ante una
+estrategia configurada en la etapa equivocada. Ignorarla y seguir produciría una
+calificación incompleta que se ve terminada: escalas en cero que parecen
+puntajes bajos, y nadie mirando.
+
+### Cada etapa es un job aparte que reconstruye su contexto desde la base
+
+No se pasan datos entre jobs. Dos razones y las dos pesan: un job encolado con
+las respuestas dentro las dejaría escritas en la tabla `jobs` y en los paneles
+de Horizon —material de expediente clínico fuera de su lugar—, y como cada etapa
+persiste su salida (Doc 05 §1.2) la base ya es la fuente. Es lo que permite
+recalificar desde la etapa cuatro sin volver a sumar.
+
+### La validez va primero y una aplicación inválida no se califica
+
+Un protocolo contestado al azar produce puntajes perfectamente calculables. Si
+se califica antes de mirar la validez, esos números entran al expediente con la
+misma apariencia que los buenos. `dudosa` sigue con advertencia; `invalida`
+detiene, y eso es configurable porque el Doc 05 lo pide así.
+
+El detalle de cada verificación se guarda con su porqué: "18 de 21 sin responder
+(86%)" se puede discutir con la persona; "inválida" a secas, no. Y ese detalle
+sólo llega a la audiencia profesional: decirle a quien contestó que su protocolo
+salió dudoso "por patrón repetido" es acusarlo de no haber leído, con un
+algoritmo por toda evidencia.
+
+### Lo que clasificó un algoritmo especial no se re-normaliza
+
+Los cortes de la NOM-035 los publicó el DOF y los del PHQ-9 su manual. Volver a
+pasarlos por una tabla de percentiles produciría un semáforo que se ve como el
+oficial y no lo es, en un documento que la empresa entrega a la autoridad.
+
+La etapa 4 se salta toda escala que ya trae `tipo_norma`. Por eso la etapa 2
+LIMPIA la normalización al reescribir un bruto: sin ese borrado, una
+recalificación dejaría el bruto nuevo con la norma vieja pegada al lado, que es
+la peor de las dos mentiras posibles. Lo cazó la prueba de recalificación.
+
+### `conteo_correctas` contaba una vez por clave y no por reactivo
+
+Un reactivo de opción múltiple tiene una clave por opción y todas apuntan a la
+misma escala. Contando por clave, cada acierto se sumaba tantas veces como
+opciones tuviera el reactivo: un puntaje multiplicado sin que nada se viera
+roto. Lo cazó el caso dorado de la corrección por adivinanza.
+
+### "Escala en cero" y "escala sin contestar" no son lo mismo
+
+La etapa de brutos deja en cero toda escala que ninguna respuesta tocó, para que
+no desaparezca de los resultados —un reporte que omite una escala se lee como
+que el instrumento no la mide—. Pero eso hace que un cero de verdad y un bloque
+sin contestar se vean igual.
+
+En el M-CHAT esa diferencia decide si una familia va a evaluación especializada:
+la entrevista de seguimiento con puntaje 0 baja el riesgo, y la entrevista sin
+contestar no baja nada porque no ocurrió. Por eso existe
+`ContextoCalificacion::tieneRespuestasPara()`, que pregunta por las respuestas y
+no por el puntaje.
+
+### La prioridad de baremos es tenant → nacional → global
+
+Una empresa con diez mil aplicaciones propias tiene mejor norma para su gente
+que la tabla publicada en un manual de 1998 con universitarios de otro país; y
+una norma mexicana describe mejor a un adolescente de Oaxaca que una
+estadounidense.
+
+**Desviación:** el Doc 05 §2 pide cuatro capas —agrupación → tenant → nacional →
+global— y el Doc 03 no da columna para la de agrupación: `baremos` sólo tiene
+`organizacion_id`. Se implementaron las tres que el esquema permite. La capa de
+agrupación necesita una columna nueva y se puede sumar sin tocar el resolutor.
+
+La capa "nacional" sale de `config/mentia.php` y no de la organización porque
+`organizaciones` no guarda país. Mientras Mentia sea de despliegue nacional, el
+país es del sistema.
+
+Sin baremo aplicable el resultado se queda en bruto con `sin_norma`, y NO entra
+a la serie longitudinal: un bruto dibujado junto a percentiles produce una
+gráfica que sube por cambiar de prueba, no por cambiar la persona.
+
+### Las fórmulas se evalúan con un parser propio, nunca con `eval()`
+
+Una expresión que llegó de una hoja de Excel subida por un tenant, ejecutándose
+como PHP, es ejecución remota de código con los pasos intermedios ya hechos.
+`EvaluadorFormulas` parsea a mano: números, claves de escala, los cuatro
+operadores y paréntesis. Nada más existe en esa gramática.
+
+Los valores se rearman en cada vuelta del bucle de fórmulas, no una vez al
+principio: una fórmula puede citar la escala que produjo la anterior, y con un
+mapa congelado leería el valor de antes.
+
+### El código de perfil desempata por el orden de la escala, no por el id
+
+El RIASEC de tres letras y los tipos DISC salen de las escalas más altas. Un
+desempate que dependa del orden en que la base devolvió las filas produce
+resultados que cambian al recalificar, y dos personas con el mismo perfil tienen
+que recibir el mismo código las dos veces.
+
+### La audiencia se deriva del rol; jamás llega por parámetro
+
+Si el evaluado pudiera pedir la audiencia `profesional`, el texto cuidado que se
+escribió para él dejaría de servir para nada: bastaría cambiar un parámetro en
+la URL para leer la versión técnica de su propio tamizaje de depresión.
+
+Y sin `resultados.ver_detalle` salen las interpretaciones pero NO los puntajes.
+Un percentil sin nadie que lo explique es una cifra que la persona va a
+interpretar sola, y casi siempre mal.
+
+El titular menor de doce años recibe la versión infantil; de ahí en adelante, la
+de adulto. El infantil a los quince se lee como que lo tratan de niño, que es la
+forma más rápida de perder a un adolescente.
+
+### Recalificar archiva primero
+
+**Desviación documentada:** el Doc 03 no trae tablas de histórico y el Doc 08
+exige recalificar "conservando histórico". Se agregaron `resultados_archivados`
+más dos hijas. Sin ellas, recalificar PISA el resultado que se le entregó a
+alguien —posiblemente el que sustentó una contratación o una canalización— y una
+impugnación de seis meses después deja de poder reconstruirse.
+
+El archivo guarda la CLAVE de la escala además del id: una recalificación puede
+venir justamente de haber publicado una versión nueva del instrumento, y
+entonces la escala vieja puede no existir.
+
+El comando exige criterio explícito. Una recalificación masiva sin querer sobre
+cien mil aplicaciones es una tarde de cola y un montón de expedientes tocados
+sin razón. Y la opción es `--instrumento`, no `--version`: Artisan ya define
+`--version` para sí mismo y declararla revienta el comando entero.
+
+### Los comparadores no castigan lo que nadie preguntó
+
+En el ajuste al puesto, un criterio SIN dato se reporta aparte y no cuenta como
+fallo: contarlo como cero hundiría al candidato por una prueba que la
+organización no le aplicó. El porcentaje se calcula sobre los criterios que sí
+se pudieron evaluar, y ponderado —en un puesto de cajero la escrupulosidad pesa
+más que la extroversión, y un promedio plano diría que dos candidatos muy
+distintos son equivalentes—.
+
+En el cambio significativo sólo se comparan mediciones del MISMO tipo de norma.
+Restar un percentil de una puntuación T daría "quince puntos de mejora" que no
+describen nada de la persona. Y el umbral por omisión es una desviación estándar
+de la escala en que se mide: no es un número redondo elegido al azar, es donde
+la diferencia empieza a ser mayor que el error de medición típico.

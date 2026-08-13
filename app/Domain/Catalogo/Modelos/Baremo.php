@@ -43,6 +43,12 @@ class Baremo extends Modelo
         return $this->belongsTo(Escala::class);
     }
 
+    /** @return BelongsTo<PoblacionNorma, $this> */
+    public function poblacion(): BelongsTo
+    {
+        return $this->belongsTo(PoblacionNorma::class, 'poblacion_norma_id');
+    }
+
     /** @return HasMany<BaremoFila, $this> */
     public function filas(): HasMany
     {

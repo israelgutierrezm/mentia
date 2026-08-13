@@ -72,8 +72,8 @@ Todo el detalle está en `docs/convenciones.md`.
 
 ## Estado
 
-**Fases 0, 1, 2, 3, 5 y 6 completas.** 201 pruebas verdes, Pint limpio, PHPStan
-nivel 6 sin errores, `npm run build` OK.
+**Fases 0, 1, 2, 3, 5, 6 y 7 completas.** 240 pruebas verdes, Pint limpio,
+PHPStan nivel 6 sin errores, `npm run build` OK.
 
 **Fase 2 (M4) — expediente y consentimientos:**
 
@@ -157,9 +157,41 @@ nivel 6 sin errores, `npm run build` OK.
 - Captura de protocolo para instrumentos que la editorial no permite en línea,
   en `/captura-protocolo` y en la API §5.
 
-**Sigue la Fase 7** (M8: pipeline de calificación) — `App\Jobs\CalificarAplicacion`
-existe como stub y ya se encola desde `finalizar()` y desde la captura de
-protocolo. O la **Fase 4** cuando haya contenido de instrumentos.
+**Fase 7 (M8) — pipeline de calificación:**
+
+- **El pipeline se describe, no se programa.** `instrumento_pipeline` +
+  parámetros en tabla hija dicen qué etapas corre cada versión y con qué
+  estrategia. `RegistroEstrategias` falla ruidoso ante una clave desconocida o
+  una estrategia puesta en la etapa equivocada.
+- **Seis jobs encadenados** en la cola `calificacion`; cada uno reconstruye su
+  contexto desde la base. Nada de datos de expediente en la tabla `jobs`.
+- Estrategias: `omisiones_max`, `patron_repetido`, `tiempo_atipico`;
+  `suma_simple`, `suma_ponderada`, `conteo_correctas` (con corrección por
+  adivinanza), `conteo_ipsativo`, `ranking_ponderado`, `conteo_criterio`;
+  `phq_gravedad`, `audit_zonas`, `nom035_cortes`, `mchat_dos_etapas`.
+- **Una aplicación inválida NO se califica** (configurable). `dudosa` sigue con
+  advertencia.
+- **Lo que clasificó un algoritmo oficial no se re-normaliza.** La etapa de
+  brutos limpia la normalización al reescribir un bruto, o una recalificación
+  dejaría el bruto nuevo con la norma vieja al lado.
+- Baremos **tenant → nacional → global** con edad congelada; sin baremo aplicable
+  se marca `sin_norma` y no entra a la serie longitudinal.
+- **Fórmulas con parser propio**, jamás `eval()`.
+- Interpretación por audiencia con variables resueltas; perfiles tipo por
+  condiciones o por las N escalas más altas (RIASEC, DISC), con desempate
+  estable por orden de escala.
+- `resultados_normalizados` es la serie del expediente de vida; las banderas se
+  copian ahí y ante dos gana la más grave.
+- **La audiencia se deriva del rol, nunca por parámetro**; sin
+  `resultados.ver_detalle` salen interpretaciones y no puntajes.
+- Comparadores: ajuste a puesto ponderado (los criterios sin dato no cuentan
+  como fallo) y cambio significativo por constructo con umbral configurable.
+- **Recalificación que archiva primero** (`mentia:recalificar --aplicacion=UUID`
+  o `--instrumento=ID`) y endpoints del Doc 07 §6.
+- 39 pruebas nuevas, casi todas casos dorados.
+
+**Sigue la Fase 8** (M9: alertas, protocolos y vistas de resultados) — o la
+**Fase 4** cuando haya contenido de instrumentos.
 
 **Pendiente que arrastran todas las fases:** el panel sigue siendo el
 placeholder de la Fase 0 y **no se comparte ninguna prop `menu`**, así que

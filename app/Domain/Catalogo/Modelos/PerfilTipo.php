@@ -15,6 +15,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $version_instrumento_id
  * @property string $codigo
  * @property string $nombre
+ * @property string|null $descripcion_profesional
+ * @property string|null $descripcion_evaluado
+ * @property string|null $fortalezas
+ * @property string|null $areas_desarrollo
+ * @property int $orden
  */
 class PerfilTipo extends Modelo
 {

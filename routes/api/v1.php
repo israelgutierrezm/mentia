@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\EstadoController;
 use App\Http\Controllers\Api\V1\ExpedienteController;
 use App\Http\Controllers\Api\V1\PersonaController;
+use App\Http\Controllers\Api\V1\ResultadoController;
 use App\Http\Controllers\Api\V1\RolController;
 use App\Http\Controllers\Api\V1\TenantInstrumentoController;
 use App\Http\Controllers\Api\V1\TutoriaController;
@@ -193,6 +194,16 @@ Route::middleware(['auth:sanctum', 'organizacion'])->group(function (): void {
     Route::post('aplicaciones/protocolo', [CapturaProtocoloController::class, 'store'])
         ->middleware('can:protocolos.capturar')
         ->name('aplicaciones.protocolo');
+
+    // ── Resultados (Doc 07 §6) ────────────────────────────────────────────
+    // Sin `can:`: decide AccesoService, y la AUDIENCIA se deriva del rol de
+    // quien pregunta. Jamás llega por parámetro (Doc 06 §1).
+    Route::get('aplicaciones/{aplicacion}/resultados', [ResultadoController::class, 'show'])
+        ->name('resultados.show');
+    Route::get('personas/{persona}/perfil-longitudinal', [ResultadoController::class, 'longitudinal'])
+        ->name('resultados.longitudinal');
+    Route::get('personas/{persona}/comparar-puesto/{perfilPuesto}', [ResultadoController::class, 'compararPuesto'])
+        ->name('resultados.comparar-puesto');
 
     // ── Accesos ───────────────────────────────────────────────────────────
     Route::middleware('can:roles.gestionar')->group(function (): void {

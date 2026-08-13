@@ -5,20 +5,33 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Domain\Evaluaciones\Modelos\Aplicacion;
+use App\Jobs\Calificacion\EtapaAlgoritmos;
+use App\Jobs\Calificacion\EtapaBanderas;
+use App\Jobs\Calificacion\EtapaBrutos;
+use App\Jobs\Calificacion\EtapaInterpretacion;
+use App\Jobs\Calificacion\EtapaNormalizacion;
+use App\Jobs\Calificacion\EtapaValidez;
+use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Bus;
 
 /**
- * STUB de la Fase 6 (Doc 08: "finalizar → job de calificación (stub)").
+ * Arranca el pipeline de calificación del Doc 05 §2.
  *
- * El pipeline real —las seis etapas del Doc 05 §2 encadenadas— es la Fase 7.
- * Esto existe para que el motor pueda encolar al finalizar sin conocer todavía
- * lo que viene después: cuando la Fase 7 llegue, sustituye el `handle()` y el
- * motor no se entera.
+ * Las seis etapas van ENCADENADAS, no en paralelo: cada una necesita lo que
+ * dejó la anterior. Con `Bus::chain`, si una falla las siguientes no corren, y
+ * eso es lo correcto —un resultado normalizado sobre brutos que reventaron a
+ * medias es peor que ningún resultado—.
+ *
+ * Este job no calcula nada: sólo encola. Existe para que quien finaliza una
+ * aplicación no tenga que conocer las seis etapas ni su orden, y para que
+ * cambiar ese orden sea cambiar una lista.
  *
  * Va en la cola `calificacion` (Doc 02 §7): es el grueso del trabajo y no debe
- * competir con las alertas.
+ * competir con las alertas, que son las que llevan prisa de verdad.
  *
  * Lleva el ID, no el modelo: un job serializado con la aplicación entera
  * guardaría sus atributos en la tabla `jobs`, y ahí no tiene nada que hacer
@@ -26,7 +39,10 @@ use Illuminate\Support\Facades\Log;
  */
 class CalificarAplicacion implements ShouldQueue
 {
+    use Dispatchable;
+    use InteractsWithQueue;
     use Queueable;
+    use SerializesModels;
 
     public function __construct(public readonly int $aplicacionId)
     {
@@ -35,19 +51,38 @@ class CalificarAplicacion implements ShouldQueue
 
     public function handle(): void
     {
-        $aplicacion = Aplicacion::query()
+        $existe = Aplicacion::query()
             ->withoutGlobalScopes()
-            ->find($this->aplicacionId);
+            ->whereKey($this->aplicacionId)
+            ->exists();
 
-        if ($aplicacion === null) {
+        if (! $existe) {
             return;
         }
 
-        Log::info('Pipeline de calificación pendiente (Fase 7)', [
-            'aplicacion_id' => $aplicacion->id,
-            'version_instrumento_id' => $aplicacion->version_instrumento_id,
-            'respuestas' => $aplicacion->respuestas()->count(),
-        ]);
+        Bus::chain($this->etapas($this->aplicacionId))
+            ->onQueue('calificacion')
+            ->dispatch();
+    }
+
+    /**
+     * El orden del Doc 05 §2. No es negociable ni configurable: la validez va
+     * antes que los brutos porque un protocolo al azar produce puntajes
+     * perfectamente calculables, y la normalización después de los algoritmos
+     * porque lo que ya clasificó un corte oficial no se re-normaliza.
+     *
+     * @return list<object>
+     */
+    public static function etapas(int $aplicacionId): array
+    {
+        return [
+            new EtapaValidez($aplicacionId),
+            new EtapaBrutos($aplicacionId),
+            new EtapaAlgoritmos($aplicacionId),
+            new EtapaNormalizacion($aplicacionId),
+            new EtapaInterpretacion($aplicacionId),
+            new EtapaBanderas($aplicacionId),
+        ];
     }
 
     /**
