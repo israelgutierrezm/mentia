@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AgrupacionController;
 use App\Http\Controllers\Api\V1\AlcanceController;
+use App\Http\Controllers\Api\V1\AplicacionController;
 use App\Http\Controllers\Api\V1\AsignacionController;
 use App\Http\Controllers\Api\V1\BateriaController;
+use App\Http\Controllers\Api\V1\CapturaProtocoloController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\EstadoController;
 use App\Http\Controllers\Api\V1\ExpedienteController;
@@ -36,6 +38,38 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('estado', EstadoController::class)->name('estado');
+
+/*
+|--------------------------------------------------------------------------
+| Motor de aplicación (Doc 07 §5) — SIN sesión
+|--------------------------------------------------------------------------
+|
+| Quien contesta lo hace con su TOKEN de aplicación y puede no tener cuenta:
+| un padre que recibe una liga por WhatsApp para responder el M-CHAT sobre su
+| hijo no se registra en nada. El token ES la credencial, y el contexto de
+| organización lo fija él, no un encabezado que el cliente pueda elegir.
+|
+| El límite es más estricto que el general: por aquí entra tráfico sin
+| autenticar y el canje de token es un endpoint adivinable.
+|
+*/
+Route::middleware('throttle:30,1')->group(function (): void {
+    Route::post('aplicaciones/iniciar', [AplicacionController::class, 'iniciar'])
+        ->name('aplicaciones.iniciar');
+
+    Route::get('aplicaciones/{aplicacion}/bloques/{clave}/reactivos', [AplicacionController::class, 'reactivos'])
+        ->name('aplicaciones.reactivos');
+    Route::post('aplicaciones/{aplicacion}/respuestas', [AplicacionController::class, 'respuestas'])
+        ->name('aplicaciones.respuestas');
+    Route::get('aplicaciones/{aplicacion}/estado', [AplicacionController::class, 'estado'])
+        ->name('aplicaciones.estado');
+    Route::post('aplicaciones/{aplicacion}/pausar', [AplicacionController::class, 'pausar'])
+        ->name('aplicaciones.pausar');
+    Route::post('aplicaciones/{aplicacion}/reanudar', [AplicacionController::class, 'reanudar'])
+        ->name('aplicaciones.reanudar');
+    Route::post('aplicaciones/{aplicacion}/finalizar', [AplicacionController::class, 'finalizar'])
+        ->name('aplicaciones.finalizar');
+});
 
 Route::middleware(['auth:sanctum', 'organizacion'])->group(function (): void {
     // ── Organización ──────────────────────────────────────────────────────
@@ -145,6 +179,13 @@ Route::middleware(['auth:sanctum', 'organizacion'])->group(function (): void {
         Route::post('baterias/{bateria}/activar', [BateriaController::class, 'activar'])
             ->name('baterias.activar');
     });
+
+    // ── Captura de protocolo (Doc 07 §5) ──────────────────────────────────
+    // Con sesión, a diferencia del resto del motor: lo hace un profesional
+    // identificado, no quien contesta con una liga.
+    Route::post('aplicaciones/protocolo', [CapturaProtocoloController::class, 'store'])
+        ->middleware('can:protocolos.capturar')
+        ->name('aplicaciones.protocolo');
 
     // ── Accesos ───────────────────────────────────────────────────────────
     Route::middleware('can:roles.gestionar')->group(function (): void {
