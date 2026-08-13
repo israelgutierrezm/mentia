@@ -486,3 +486,49 @@ por encima del hombro.
 Es consecuencia de que el claro sólo exista al generarse. Un recordatorio deja
 inservible el correo original, lo cual es correcto —una liga vieja circulando es
 una liga que alguien más puede usar— y por eso el texto del correo lo advierte.
+
+### El propósito sólo rellena instrumento o batería cuando no se pidió ninguno
+
+Rellenar cada uno por separado producía un choque contra el CHECK XOR: pedir
+explícitamente una batería, contra un propósito que trae instrumento por
+omisión, dejaba los dos puestos. Quien especifica uno está diciendo justamente
+que no quiere el default del otro. Lo cazó la prueba de reordenamiento con
+asignaciones activas.
+
+### Una batería sólo admite lo que la organización puede aplicar
+
+`GestorBaterias` rechaza instrumentos no habilitados y los de `solo_captura`.
+Una batería con un instrumento apagado se arma sin protestar y revienta al
+asignarla, delante de la persona que iba a contestarla.
+
+Y una batería con asignaciones activas NO se reordena: cambiar el orden a media
+campaña haría que dos personas contestaran la misma batería en secuencias
+distintas, y el orden afecta al resultado por fatiga y aprendizaje entre
+instrumentos. Para cambiarla se archiva y se crea otra.
+
+El reordenamiento recibe el orden COMPLETO y exige que sea una permutación del
+actual: una lista parcial dejaría posiciones viejas mezcladas con las nuevas.
+
+### Los recordatorios tienen cadencia, tope y una excepción
+
+Tres reglas porque el recordatorio molesta:
+
+- **Cadencia mínima** de dos días. Un sistema que insiste todos los días se gana
+  que lo marquen como spam, y entonces tampoco llega la invitación de la
+  siguiente campaña.
+- **Tope de tres.** Quien no contestó tras tres avisos no va a contestar por un
+  cuarto; lo que hace falta ahí es que alguien lo llame.
+- **El último día se salta la cadencia.** Es la única insistencia que sirve de
+  verdad, porque después ya no hay nada que hacer.
+
+El job corre dentro de `ContextoOrganizacion::sinRestriccion()`: los global
+scopes fallan cerrado, así que sin eso no vería ninguna asignación y no mandaría
+nada **en silencio**.
+
+### Una prueba dependía de la hora a la que se corriera la suite
+
+`test_el_ultimo_dia_se_salta_la_cadencia` usaba `startOfDay()->addHours(10)`
+como "último día". Si la suite corría antes de las diez de la mañana, ese
+instante quedaba después de `ventana_fin` y la ventana ya estaba cerrada: la
+prueba fallaba por la hora, no por el código. Ahora usa
+`ventana_fin->subMinutes(5)`.

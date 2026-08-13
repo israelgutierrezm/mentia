@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Web\AgrupacionController;
 use App\Http\Controllers\Web\AlcanceController;
+use App\Http\Controllers\Web\BateriaController;
 use App\Http\Controllers\Web\CatalogoController;
 use App\Http\Controllers\Web\ConsentimientoController;
 use App\Http\Controllers\Web\ExpedienteController;
@@ -106,6 +107,22 @@ Route::middleware(['auth', 'organizacion'])->group(function (): void {
             ->name('habilitacion.habilitar');
         Route::post('habilitacion/{version}/declaracion', [HabilitacionController::class, 'declararLicencia'])
             ->name('habilitacion.declaracion');
+    });
+
+    // ── Baterías ──────────────────────────────────────────────────────────
+    Route::middleware('can:baterias.armar')->group(function (): void {
+        Route::get('baterias', [BateriaController::class, 'index'])->name('baterias.index');
+        Route::post('baterias', [BateriaController::class, 'store'])->name('baterias.store');
+        Route::post('baterias/{bateria}/instrumentos', [BateriaController::class, 'agregar'])
+            ->name('baterias.agregar');
+        Route::delete('baterias/{bateria}/instrumentos/{renglon}', [BateriaController::class, 'quitar'])
+            ->name('baterias.quitar');
+        Route::post('baterias/{bateria}/orden', [BateriaController::class, 'reordenar'])
+            ->name('baterias.orden');
+        Route::post('baterias/{bateria}/activar', [BateriaController::class, 'activar'])
+            ->name('baterias.activar');
+        Route::post('baterias/{bateria}/archivar', [BateriaController::class, 'archivar'])
+            ->name('baterias.archivar');
     });
 
     // ── Tutorías ──────────────────────────────────────────────────────────

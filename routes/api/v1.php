@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\AgrupacionController;
 use App\Http\Controllers\Api\V1\AlcanceController;
 use App\Http\Controllers\Api\V1\AsignacionController;
+use App\Http\Controllers\Api\V1\BateriaController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\EstadoController;
 use App\Http\Controllers\Api\V1\ExpedienteController;
@@ -129,6 +130,21 @@ Route::middleware(['auth:sanctum', 'organizacion'])->group(function (): void {
     // discreta exige su propio permiso.
     Route::post('asignaciones', [AsignacionController::class, 'store'])
         ->name('asignaciones.store');
+
+    // ── Baterías (Doc 07 §3) ──────────────────────────────────────────────
+    Route::middleware('can:baterias.armar')->group(function (): void {
+        Route::get('baterias', [BateriaController::class, 'index'])->name('baterias.index');
+        Route::post('baterias', [BateriaController::class, 'store'])->name('baterias.store');
+        Route::put('baterias/{bateria}', [BateriaController::class, 'update'])->name('baterias.update');
+        Route::post('baterias/{bateria}/instrumentos', [BateriaController::class, 'agregar'])
+            ->name('baterias.agregar');
+        Route::delete('baterias/{bateria}/instrumentos/{renglon}', [BateriaController::class, 'quitar'])
+            ->name('baterias.quitar');
+        Route::put('baterias/{bateria}/orden', [BateriaController::class, 'reordenar'])
+            ->name('baterias.orden');
+        Route::post('baterias/{bateria}/activar', [BateriaController::class, 'activar'])
+            ->name('baterias.activar');
+    });
 
     // ── Accesos ───────────────────────────────────────────────────────────
     Route::middleware('can:roles.gestionar')->group(function (): void {

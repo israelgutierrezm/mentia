@@ -61,10 +61,19 @@ class CreadorAsignaciones
             throw new RuntimeException('No hay organización activa.');
         }
 
-        // Lo que no venga en la petición sale del propósito: es para lo que
-        // existe como plantilla.
-        $versionInstrumentoId ??= $proposito->version_instrumento_id;
-        $bateriaId ??= $proposito->bateria_id;
+        /*
+         * El propósito sólo rellena cuando NO se pidió ninguno de los dos.
+         *
+         * Rellenar cada uno por separado producía el error que cazó una
+         * prueba: pedir explícitamente una batería contra un propósito que
+         * trae instrumento dejaba los DOS puestos y chocaba contra el XOR.
+         * Quien especifica uno está diciendo justamente que no quiere el
+         * default del otro.
+         */
+        if ($versionInstrumentoId === null && $bateriaId === null) {
+            $versionInstrumentoId = $proposito->version_instrumento_id;
+            $bateriaId = $proposito->bateria_id;
+        }
 
         $this->exigirExactamenteUno($versionInstrumentoId, $bateriaId);
 

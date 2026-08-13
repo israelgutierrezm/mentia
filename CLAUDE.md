@@ -72,7 +72,7 @@ Todo el detalle está en `docs/convenciones.md`.
 
 ## Estado
 
-**Fases 0, 1, 2, 3 y 5 completas.** 149 pruebas verdes, Pint limpio, PHPStan nivel 6
+**Fases 0, 1, 2, 3 y 5 completas.** 169 pruebas verdes, Pint limpio, PHPStan nivel 6
 sin errores, `npm run build` OK.
 
 **Fase 2 (M4) — expediente y consentimientos:**
@@ -124,6 +124,12 @@ sin errores, `npm run build` OK.
   excepción y la API responde 409 con el agregado.
 - Canal de notificación abstraído (`CanalNotificacion`), correo en la V1. El
   Mailable **no se encola**: lleva el token en claro.
+- **Editor de baterías arrastrable** (`vuedraggable`). Sólo admite
+  instrumentos habilitados para la organización, y una batería con
+  asignaciones activas no se reordena.
+- **Recordatorios programados** con cadencia mínima, tope y excepción del
+  último día. El job corre con `sinRestriccion()` porque los global scopes
+  fallan cerrado.
 
 **Sigue la Fase 6** (M7: motor de aplicación web), que es la continuación
 natural — o la **Fase 4** cuando haya contenido de instrumentos.
