@@ -21,6 +21,7 @@ use App\Domain\Personas\Modelos\Tutoria;
 use App\Models\User;
 use App\Soporte\Multitenencia\ContextoOrganizacion;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Crypt;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
@@ -101,9 +102,24 @@ class EscenarioTenant
         return $persona;
     }
 
+    /**
+     * La cuenta de una persona, con el SEGUNDO FACTOR ya activado.
+     *
+     * Un rol de sensibilidad 3–4 no puede entrar sin 2FA (Doc 06 §4), así que
+     * una profesional que ya está trabajando en el sistema lo tiene puesto. Lo
+     * contrario —cuentas de prueba sin segundo factor— haría que cada prueba de
+     * cada módulo chocara contra la pantalla de activación en vez de probar lo
+     * que le toca.
+     *
+     * Que el bloqueo funcione lo prueba `SegundoFactorTest`, que es donde debe
+     * probarse.
+     */
     public function usuarioDe(Persona $persona): User
     {
-        return User::factory()->de($persona)->create();
+        return User::factory()->de($persona)->create([
+            'dos_factores_secreto' => Crypt::encryptString('SECRETODEPRUEBA234567'),
+            'dos_factores_confirmado_en' => Carbon::now(),
+        ]);
     }
 
     /**

@@ -941,3 +941,159 @@ bruto pintado junto a percentiles se lee como si significara lo mismo, y no
 significa nada fuera de su propia aplicación. Y la advertencia de validez va
 ARRIBA, antes de cualquier número — un puntaje leído sin ella es un puntaje mal
 leído.
+
+## Pendientes cerrados — panel, menú y autenticación
+
+### El panel se arma por tarjetas declaradas, no por ramas de rol
+
+`CatalogoSecciones` declara cada sección con su permiso, igual que
+`CatalogoPermisos` declara cada permiso: aquel dice qué se puede hacer, éste
+dónde se hace. El middleware de Inertia filtra la lista por lo que el rol activo
+alcanza y comparte la prop `menu` que `LayoutAdmin` esperaba desde la Fase 0.
+
+Mandar la lista completa y esconder con `v-if` en el cliente sería decirle al
+navegador qué existe: cualquiera abriría las herramientas de desarrollo para ver
+el mapa de un sistema al que no tiene acceso.
+
+Una prueba comprueba que ninguna sección declare un permiso inexistente. Un
+permiso mal escrito escondería la sección para siempre y nadie se enteraría: la
+pantalla existiría, la ruta funcionaría y el menú no la mostraría nunca.
+
+Lo pendiente va arriba del panel y con número. Un panel que abre con un saludo y
+deja las tres alertas críticas escondidas en el menú lateral no sirve para
+trabajar. Y quien no atiende alertas no ve su conteo: saber cuántas hay abiertas
+ya es información clínica sobre el grupo.
+
+### No existía la pantalla de entrar
+
+`admin-base` la iba a traer y admin-base nunca existió (ver la decisión de la
+Fase 0). El middleware `auth` redirigía a `route('login')`, esa ruta no estaba
+declarada, y nadie podía usar el sistema. Se descubrió al poner el panel detrás
+de `auth`.
+
+Se construyó con tres decisiones:
+
+- **No hay registro público.** Las personas las da de alta la organización.
+  Alguien que se registra solo no está vinculado a ningún tenant y no puede ver
+  nada, pero sí habría creado una cuenta con un correo que quizá no es suyo, en
+  un sistema que guarda expedientes clínicos.
+- **Un solo mensaje de error** para correo inexistente y contraseña equivocada.
+  Distinguirlos convierte el formulario en un verificador de qué correos tienen
+  cuenta aquí, y tener cuenta aquí ya dice algo de una persona.
+- **Estrangulamiento por correo Y por IP.** Sólo por correo, cualquiera
+  bloquearía la cuenta ajena a propósito; sólo por IP, una oficina entera
+  comparte castigo.
+
+Al entrar se fija la primera organización vigente: sin tenant activo los global
+scopes fallan cerrado y todas las pantallas salen vacías, y quien ve un sistema
+en blanco concluye que está roto, no que le falta elegir organización.
+
+## Fase 9 — Reportes, IA, ARCO y endurecimiento
+
+### El PDF se guarda, no se regenera
+
+Un reporte es un DOCUMENTO ENTREGADO: alguien lo imprimió y lo puso en un
+expediente o se lo dio a una familia. Si el catálogo cambia mañana —se corrige
+un baremo, se reescribe una interpretación— el papel que esa persona tiene en la
+mano tiene que seguir explicándose. Regenerarlo al vuelo produciría un documento
+distinto con el mismo folio.
+
+### Las plantillas se sustituyen, no se compilan
+
+`RenderizadorPlantilla` conoce dos cosas: `{{ clave }}` y `{{#lista}}…{{/lista}}`.
+Todo lo que sustituye va escapado y no hay marcador "sin escapar" —en cuanto
+exista, alguien lo va a usar para meter estilos y con ellos scripts—.
+
+Una plantilla que un tenant puede editar y que el servidor COMPILARA —Blade,
+Twig, lo que sea— es ejecución de código arbitrario con los pasos intermedios ya
+hechos: quien editara la plantilla del reporte podría leer el `.env`.
+
+dompdf va con `isRemoteEnabled` y `isPhpEnabled` en falso: una plantilla podría
+apuntar a `http://localhost/…` y convertir el generador de PDF en un lector de
+la red interna.
+
+### El insumo de la IA va pseudonimizado, y lo garantiza el armador
+
+Entra lo que el Doc 05 §6 permite: escalas, normas, interpretaciones ya
+resueltas, banderas y validez. No entra nombre, CURP, fecha de nacimiento ni las
+respuestas crudas —una respuesta abierta puede contener cualquier cosa que la
+persona haya querido escribir—.
+
+La edad sí entra, en AÑOS y no en fecha: un reporte que no sabe si habla de
+alguien de siete o de cuarenta años no sirve, y el año no identifica a nadie.
+
+Que la pseudonimización viva en `ArmadorInsumoIA` y no en quien llama es el
+punto: si cada llamador armara su propio insumo, tarde o temprano uno metería el
+nombre "para que el reporte quede mejor". Una prueba lo comprueba mirando lo que
+recibió el redactor, no lo que salió.
+
+### El borrador nace como borrador y no hay otro camino
+
+- Firmar un reporte con borrador de IA sin validar **está prohibido en el
+  código**, no sólo en la documentación. La firma dice "yo respondo por esto".
+- Validar exige el permiso `ia.validar_reportes`.
+- Rechazar exige decir por qué: un borrador rechazado sin explicación deja el
+  expediente con un texto muerto, y quien lo lea en seis meses no puede saber si
+  se rechazó porque el texto estaba mal o porque los datos lo estaban.
+- Quien valida puede CORREGIR el texto. Es la diferencia entre revisar y sellar.
+
+El prompt de sistema vive versionado en `config/ia.php` y no en la base: es
+configuración que se revisa en un pull request. Un prompt editable en caliente es
+un prompt que nadie sabe qué decía el día que se generó un reporte impugnado.
+
+Sin `ANTHROPIC_API_KEY` el integrador falla RUIDOSO. Devolver texto vacío
+produciría un reporte que parece terminado y que nadie redactó, y alguien lo
+firmaría.
+
+### ARCO son plazos, no un formulario
+
+La LFPDPPP da 20 días hábiles para decir si procede y 15 más para hacerla
+efectiva. El plazo se calcula AL RECIBIR y se guarda: recalcularlo después con el
+calendario de hoy daría otra fecha si cambian los asuetos, y el plazo que corre
+es el que corría el día que entró la solicitud.
+
+Declarar improcedente EXIGE documentar la excepción. Hay datos que la
+organización está obligada a conservar —la bitácora— y eso se sostiene; lo que
+no se sostiene es no explicarlo. Una negativa sin fundamento es una queja ante
+el INAI.
+
+**Limitación declarada:** el cálculo de días hábiles salta sábados y domingos
+pero no los descansos obligatorios del artículo 74 de la LFT ni los asuetos que
+cada organización declare. El plazo que sale es por tanto igual o MÁS CORTO que
+el real, y quedarse corto en un plazo legal es el error que no hace daño.
+
+### 2FA obligatoria: bloquea, no sugiere
+
+Quien puede abrir el expediente clínico de un menor entra con dos factores. Es
+requisito del ROL y no de la persona, así que a quien hoy le suben el rol queda
+obligado mañana sin que nadie tenga que avisarle.
+
+El umbral es configurable hacia arriba y **no baja de 3**: el código lo impone
+con un `max()`. Una organización que quisiera apagarlo estaría desactivando un
+control que protege expedientes clínicos de menores.
+
+Exigírselo a todo el mundo suena más seguro y no lo es: un docente que sólo ve
+nombres de su grupo abandona el sistema antes de terminar de configurar una
+aplicación de autenticación, y entonces alguien le pasa su contraseña a otro.
+
+El middleware va en web Y en API: la API es exactamente por donde un rol de
+sensibilidad alta se saltaría el segundo factor si la exigencia viviera nada más
+en las pantallas.
+
+La pantalla de activación queda fuera del bloqueo. Encerrar a la persona sin
+dejarle activar lo que se le exige convertiría la medida en un candado sin
+llave.
+
+Los códigos de recuperación son de un solo uso: dejarlos reutilizables
+convertiría una captura de pantalla en una llave permanente. Y existen porque,
+en un sistema donde el acceso lo da la organización, perder el teléfono sin
+ellos significa una llamada a soporte para que alguien desactive la 2FA por
+fuera — que es exactamente el agujero que la 2FA venía a tapar.
+
+### El modo estricto de Eloquent y las columnas nuevas
+
+Agregar columnas nullable a `users` rompió tres pruebas con
+`MissingAttributeException`: `preventAccessingMissingAttributes` está activo y un
+`create()` sólo trae los atributos que insertó. Se resolvió con valores por
+omisión en `$attributes` del modelo, que es lo que evita que vuelva a pasar con
+cada columna que se agregue.

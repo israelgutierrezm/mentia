@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Api\Problema;
 use App\Http\Middleware\CompartirConInertia;
+use App\Http\Middleware\ExigirSegundoFactor;
 use App\Http\Middleware\ResolverOrganizacion;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -59,6 +60,14 @@ return Application::configure(basePath: dirname(__DIR__))
          */
         $middleware->alias([
             'organizacion' => ResolverOrganizacion::class,
+
+            /*
+             * Segundo factor obligatorio para roles de sensibilidad 3–4
+             * (Doc 06 §4). Va como alias y no global porque la propia pantalla
+             * de activación tiene que quedar fuera: encerrar a la persona sin
+             * dejarle activar lo que se le exige sería un candado sin llave.
+             */
+            'dos_factores' => ExigirSegundoFactor::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

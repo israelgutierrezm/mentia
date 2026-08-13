@@ -33,6 +33,7 @@ class DatabaseSeeder extends Seeder
                 ExpedienteSeeder::class,
                 ConsentimientosSeeder::class,
                 CatalogoSeeder::class,
+                PlantillasReporteSeeder::class,
             ]);
         });
     }

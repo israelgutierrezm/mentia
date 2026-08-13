@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\AgrupacionController;
 use App\Http\Controllers\Api\V1\AlcanceController;
 use App\Http\Controllers\Api\V1\AlertaController;
 use App\Http\Controllers\Api\V1\AplicacionController;
+use App\Http\Controllers\Api\V1\ArcoController;
 use App\Http\Controllers\Api\V1\AsignacionController;
 use App\Http\Controllers\Api\V1\BateriaController;
 use App\Http\Controllers\Api\V1\CapturaProtocoloController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\EstadoController;
 use App\Http\Controllers\Api\V1\ExpedienteController;
 use App\Http\Controllers\Api\V1\PersonaController;
+use App\Http\Controllers\Api\V1\ReporteController;
 use App\Http\Controllers\Api\V1\ResultadoController;
 use App\Http\Controllers\Api\V1\RolController;
 use App\Http\Controllers\Api\V1\TenantInstrumentoController;
@@ -80,7 +82,12 @@ Route::middleware('throttle:180,1')->group(function (): void {
         ->name('aplicaciones.finalizar');
 });
 
-Route::middleware(['auth:sanctum', 'organizacion'])->group(function (): void {
+/*
+ * `dos_factores` va también aquí, y no sólo en web: la API es exactamente por
+ * donde un rol de sensibilidad alta podría saltarse el segundo factor si la
+ * exigencia viviera nada más en las pantallas.
+ */
+Route::middleware(['auth:sanctum', 'organizacion', 'dos_factores'])->group(function (): void {
     // ── Organización ──────────────────────────────────────────────────────
     Route::middleware('can:unidades.gestionar')->group(function (): void {
         Route::get('unidades', [UnidadController::class, 'index'])->name('unidades.index');
@@ -205,6 +212,37 @@ Route::middleware(['auth:sanctum', 'organizacion'])->group(function (): void {
         ->name('resultados.longitudinal');
     Route::get('personas/{persona}/comparar-puesto/{perfilPuesto}', [ResultadoController::class, 'compararPuesto'])
         ->name('resultados.comparar-puesto');
+
+    // ── Reportes (Doc 07 §6) ──────────────────────────────────────────────
+    // Sin `can:` en la generación individual: decide AccesoService dentro,
+    // porque la audiencia y el detalle dependen del rol de quien pide.
+    Route::post('reportes/aplicaciones/{aplicacion}', [ReporteController::class, 'individual'])
+        ->name('reportes.individual');
+
+    Route::post('reportes/integrador', [ReporteController::class, 'integrador'])
+        ->middleware('can:reportes.grupales')->name('reportes.integrador');
+
+    Route::get('reportes/{reporte}', [ReporteController::class, 'show'])->name('reportes.show');
+
+    Route::post('reportes/{reporte}/validar', [ReporteController::class, 'validarBorrador'])
+        ->middleware('can:ia.validar_reportes')->name('reportes.validar');
+
+    Route::post('reportes/{reporte}/firmar', [ReporteController::class, 'firmar'])
+        ->middleware('can:ia.validar_reportes')->name('reportes.firmar');
+
+    // La descarga deja bitácora SIEMPRE (Doc 07 §8.5).
+    Route::get('reportes/{reporte}/descargar', [ReporteController::class, 'descargar'])
+        ->middleware('can:resultados.exportar')->name('reportes.descargar');
+
+    // ── Derechos ARCO (Doc 06 §3) ─────────────────────────────────────────
+    Route::middleware('can:arco.gestionar')->group(function (): void {
+        Route::get('arco', [ArcoController::class, 'index'])->name('arco.index');
+        Route::post('arco', [ArcoController::class, 'store'])->name('arco.store');
+        Route::post('arco/{solicitud}/responder', [ArcoController::class, 'responder'])
+            ->name('arco.responder');
+        Route::get('arco/{solicitud}/exportar', [ArcoController::class, 'exportar'])
+            ->name('arco.exportar');
+    });
 
     // ── Alertas (Doc 07 §6) ───────────────────────────────────────────────
     Route::middleware('can:alertas.atender')->group(function (): void {

@@ -72,8 +72,12 @@ Todo el detalle está en `docs/convenciones.md`.
 
 ## Estado
 
-**Fases 0, 1, 2, 3, 5, 6, 7 y 8 completas.** 262 pruebas verdes, Pint limpio,
+**Fases 0, 1, 2, 3, 5, 6, 7, 8 y 9 completas.** 304 pruebas verdes, Pint limpio,
 PHPStan nivel 6 sin errores, `npm run build` OK.
+
+**El panel ya existe** y hay pantalla de entrar: los dos pendientes que
+arrastraban todas las fases quedaron cerrados. `CatalogoSecciones` declara cada
+sección con su permiso y el middleware comparte la prop `menu` filtrada.
 
 **Fase 2 (M4) — expediente y consentimientos:**
 
@@ -214,14 +218,28 @@ PHPStan nivel 6 sin errores, `npm run build` OK.
   escalas, y perfil longitudinal agrupado **por dominio** con SVG a mano.
 - API §6 de alertas. El stub `NotificacionRegistrada` ya no existe.
 
-**Sigue la Fase 9** (M10: reportes, PDF, IA y endurecimiento) — o la **Fase 4**
-cuando haya contenido de instrumentos.
+**Fase 9 (M10) — reportes, IA, ARCO y endurecimiento:**
 
-**Pendiente que arrastran todas las fases:** el panel sigue siendo el
-placeholder de la Fase 0 y **no se comparte ninguna prop `menu`**, así que
-`LayoutAdmin` dibuja la barra lateral vacía. Todas las pantallas de las Fases
-1–6 sólo se alcanzan escribiendo la URL. Armar el panel por tarjetas declaradas
-con su permiso es trabajo propio, no de la Fase 6.
+- **El PDF se guarda, no se regenera** (dompdf, sin acceso remoto ni PHP). Un
+  reporte es un documento entregado: si el catálogo cambia, el papel que alguien
+  tiene en la mano tiene que seguir explicándose.
+- Plantillas con **sustitución, nunca compilación**, y todo escapado. Una
+  plantilla editable que el servidor compilara sería ejecución de código.
+- **Insumo de IA pseudonimizado** garantizado por `ArmadorInsumoIA`: sin nombre,
+  CURP, fecha de nacimiento ni respuestas crudas. Prompt versionado en
+  `config/ia.php`, no en la base.
+- El **borrador nace como borrador**; firmar sin validar está prohibido en el
+  código. Rechazar exige decir por qué; quien valida puede corregir el texto.
+- **ARCO con plazos** calculados al recibir y guardados. Improcedente exige
+  documentar la excepción. El cálculo de días hábiles salta fines de semana,
+  **no** los asuetos de la LFT — queda corto a propósito.
+- **2FA obligatoria para roles de sensibilidad ≥3**, en web y en API. Bloquea, no
+  sugiere; el umbral no baja de 3. Códigos de recuperación de un solo uso.
+- `docs/despliegue.md` con requisitos, variables, colas, cron, respaldos y lo que
+  falta.
+
+**Sigue la Fase 4** cuando haya contenido de instrumentos, o la **Fase 10**
+(Flutter, repo aparte).
 
 **Dos bloqueos estructurales más adelante, ya identificados:**
 

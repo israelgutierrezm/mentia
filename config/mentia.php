@@ -38,4 +38,21 @@ return [
         'detener_si_invalida' => env('MENTIA_DETENER_SI_INVALIDA', true),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Seguridad
+    |--------------------------------------------------------------------------
+    |
+    | `nivel_minimo_2fa`: a partir de qué nivel de sensibilidad del rol se
+    | vuelve OBLIGATORIO el segundo factor (Doc 06 §4). Se puede subir para
+    | exigirlo a más gente; no se puede bajar de 3, y el código lo impone con un
+    | `max()` — una organización que quisiera apagarlo estaría desactivando un
+    | control que protege expedientes clínicos de menores.
+    |
+    */
+
+    'seguridad' => [
+        'nivel_minimo_2fa' => (int) env('MENTIA_NIVEL_MINIMO_2FA', 3),
+    ],
+
 ];

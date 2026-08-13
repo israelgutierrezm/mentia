@@ -6,6 +6,7 @@ use App\Http\Controllers\Web\AgrupacionController;
 use App\Http\Controllers\Web\AlcanceController;
 use App\Http\Controllers\Web\AlertaController;
 use App\Http\Controllers\Web\AplicacionController;
+use App\Http\Controllers\Web\AutenticacionController;
 use App\Http\Controllers\Web\BateriaController;
 use App\Http\Controllers\Web\CapturaProtocoloController;
 use App\Http\Controllers\Web\CatalogoController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Web\PersonaController;
 use App\Http\Controllers\Web\PortalExpedienteController;
 use App\Http\Controllers\Web\ResultadoController;
 use App\Http\Controllers\Web\RolController;
+use App\Http\Controllers\Web\SegundoFactorController;
 use App\Http\Controllers\Web\TutoriaController;
 use App\Http\Controllers\Web\UnidadController;
 use Illuminate\Support\Facades\Route;
@@ -34,7 +36,40 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', PanelController::class)->name('panel');
+/*
+ * ENTRAR Y SALIR. No hay registro: las personas las da de alta la organización.
+ *
+ * La ruta se llama `login` porque es el nombre que el middleware `auth` de
+ * Laravel busca al redirigir; la URL sí está en español.
+ */
+Route::middleware('guest')->group(function (): void {
+    Route::get('entrar', [AutenticacionController::class, 'mostrar'])->name('login');
+    Route::post('entrar', [AutenticacionController::class, 'entrar']);
+});
+
+Route::post('salir', [AutenticacionController::class, 'salir'])
+    ->middleware('auth')->name('logout');
+
+/*
+ * SEGUNDO FACTOR. Fuera del grupo con `dos_factores` a propósito: es la única
+ * pantalla que sigue abierta mientras el middleware bloquea todo lo demás.
+ * Encerrar a la persona sin dejarle activar lo que se le exige convertiría la
+ * medida en un candado sin llave.
+ */
+Route::middleware('auth')->group(function (): void {
+    Route::get('seguridad/dos-factores', [SegundoFactorController::class, 'mostrar'])
+        ->name('dos-factores');
+    Route::post('seguridad/dos-factores', [SegundoFactorController::class, 'confirmar']);
+});
+
+/*
+ * El panel se dibuja con las tarjetas que la persona alcanza. Va detrás de
+ * `organizacion` porque sin tenant activo no hay nada que contar ni que
+ * mostrar: los global scopes fallan cerrado y saldría vacío sin decir por qué.
+ */
+Route::middleware(['auth', 'organizacion', 'dos_factores'])
+    ->get('/', PanelController::class)
+    ->name('panel');
 
 /*
  * CONTESTAR. Pública, sin sesión y sin organización activa.
@@ -73,7 +108,7 @@ Route::middleware('auth')->group(function (): void {
  * de fijar el contexto; sin él, los global scopes no tienen contra qué
  * filtrar y —al fallar cerrado— las pantallas saldrían vacías.
  */
-Route::middleware(['auth', 'organizacion'])->group(function (): void {
+Route::middleware(['auth', 'organizacion', 'dos_factores'])->group(function (): void {
     // ── Organización ──────────────────────────────────────────────────────
     Route::middleware('can:unidades.gestionar')->group(function (): void {
         Route::get('unidades', [UnidadController::class, 'index'])->name('unidades.index');

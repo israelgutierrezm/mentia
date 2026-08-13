@@ -46,7 +46,14 @@ class InterpretacionServiceProvider extends ServiceProvider
      *
      * @var array<class-string, class-string>
      */
-    public $singletons = [];
+    public $singletons = [
+        /*
+         * Quien redacta los borradores integradores. Tras contrato para que las
+         * pruebas no llamen a una API de pago ni dependan de la red, y para que
+         * cambiar de proveedor sea cambiar esta línea.
+         */
+        Contratos\RedactaBorradores::class => Servicios\RedactorAnthropic::class,
+    ];
 
     /**
      * Las estrategias de la Ola 1 (Doc 08, Fase 7).

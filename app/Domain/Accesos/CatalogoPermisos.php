@@ -162,6 +162,15 @@ class CatalogoPermisos
                 'Revisar y firmar el borrador que redacta la IA. Sin esta firma no se libera.'
             ),
 
+            // ── Datos personales ──────────────────────────────────────────
+            new Permiso(
+                'arco.gestionar',
+                'resultados',
+                'Atender solicitudes ARCO',
+                'Recibir y responder solicitudes de acceso, rectificación, cancelación '
+                .'y oposición, dentro de los plazos que fija la LFPDPPP.'
+            ),
+
             // ── Alertas ───────────────────────────────────────────────────
             new Permiso(
                 'alertas.atender',

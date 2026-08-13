@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 
 const pagina = usePage();
 
@@ -12,6 +12,21 @@ const avisos = computed(() => pagina.props.avisos ?? {});
 // (Fase 1). Cablearlo aquí obligaría a tocar el frontend cada vez que una
 // organización define un rol nuevo, que es justo lo que el sistema evita.
 const secciones = computed(() => pagina.props.menu ?? []);
+
+/** Las secciones agrupadas, conservando el orden en que llegaron. */
+const grupos = computed(() => {
+    const porGrupo = new Map();
+
+    secciones.value.forEach((seccion) => {
+        if (!porGrupo.has(seccion.grupo)) {
+            porGrupo.set(seccion.grupo, []);
+        }
+
+        porGrupo.get(seccion.grupo).push(seccion);
+    });
+
+    return Array.from(porGrupo, ([grupo, items]) => ({ grupo, items }));
+});
 </script>
 
 <template>
@@ -23,15 +38,40 @@ const secciones = computed(() => pagina.props.menu ?? []);
                 <span class="text-lg font-semibold tracking-tight">Mentia</span>
             </div>
 
-            <nav v-if="secciones.length" class="p-4">
-                <a
-                    v-for="seccion in secciones"
-                    :key="seccion.clave"
-                    :href="seccion.url"
-                    class="block rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+            <nav v-if="secciones.length" class="space-y-4 p-4">
+                <Link
+                    href="/"
+                    class="block rounded-md px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100"
                 >
-                    {{ seccion.etiqueta }}
-                </a>
+                    Panel
+                </Link>
+
+                <div v-for="bloque in grupos" :key="bloque.grupo" class="space-y-1">
+                    <p class="px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        {{ bloque.grupo }}
+                    </p>
+
+                    <Link
+                        v-for="seccion in bloque.items"
+                        :key="seccion.clave"
+                        :href="seccion.url"
+                        class="flex items-center justify-between rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                    >
+                        <span>{{ seccion.etiqueta }}</span>
+
+                        <!--
+                            El contador de alertas abiertas se ve desde
+                            cualquier pantalla. Es el único número del menú
+                            porque es el único que no puede esperar.
+                        -->
+                        <span
+                            v-if="seccion.contador"
+                            class="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-900"
+                        >
+                            {{ seccion.contador }}
+                        </span>
+                    </Link>
+                </div>
             </nav>
         </aside>
 
