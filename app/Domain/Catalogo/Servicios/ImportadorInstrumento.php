@@ -12,21 +12,28 @@ use App\Domain\Catalogo\Modelos\Bloque;
 use App\Domain\Catalogo\Modelos\ClaveCalificacion;
 use App\Domain\Catalogo\Modelos\Dominio;
 use App\Domain\Catalogo\Modelos\Escala;
+use App\Domain\Catalogo\Modelos\EtapaPipeline;
 use App\Domain\Catalogo\Modelos\Instrumento;
 use App\Domain\Catalogo\Modelos\OpcionReactivo;
+use App\Domain\Catalogo\Modelos\ParametroPipeline;
 use App\Domain\Catalogo\Modelos\PoblacionNorma;
 use App\Domain\Catalogo\Modelos\Reactivo;
 use App\Domain\Catalogo\Modelos\ReglaInterpretacion;
 use App\Domain\Catalogo\Modelos\TipoReactivo;
 use App\Domain\Catalogo\Modelos\VersionInstrumento;
+use App\Domain\Interpretacion\Servicios\RegistroEstrategias;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 /**
  * Importa un instrumento desde la plantilla del Doc 04.
  *
- * Ocho hojas: instrumento, escalas, bloques, reactivos, opciones, claves,
- * baremos, interpretaciones.
+ * Nueve hojas: instrumento, escalas, bloques, reactivos, opciones, claves,
+ * baremos, interpretaciones y pipeline.
+ *
+ * La novena no estaba en la plantilla del Doc 04 —esa plantilla es anterior al
+ * motor de calificación—: sin ella un instrumento carga, publica y se asigna, y
+ * no calcula nada.
  *
  * DOS DECISIONES QUE GOBIERNAN TODO EL SERVICIO:
  *
@@ -67,17 +74,35 @@ class ImportadorInstrumento
         ?int $organizacionIdContenido = null,
         ?VersionInstrumento $versionExistente = null,
     ): ReporteImportacion {
-        $this->reporte = new ReporteImportacion;
-        $this->escalas = [];
-        $this->bloques = [];
-        $this->reactivos = [];
-        $this->opciones = [];
+        $this->reiniciar();
 
         $hojas = $this->leerHojas($rutaArchivo);
 
         if ($hojas === null) {
             return $this->reporte;
         }
+
+        return $this->importarHojas($hojas, $organizacionIdContenido, $versionExistente);
+    }
+
+    /**
+     * Importa desde las hojas YA LEÍDAS.
+     *
+     * Es el punto por donde entra el sembrado de instrumentos oficiales
+     * (`mentia:seed-instrumentos`), que lee archivos de datos versionados en el
+     * repositorio en vez de un Excel. Los dos caminos comparten la validación,
+     * el reporte fila a fila y el rollback total: una segunda ruta de
+     * importación con sus propias reglas acabaría admitiendo contenido que la
+     * primera rechaza.
+     *
+     * @param  array<string, list<array<string, string>>>  $hojas
+     */
+    public function importarHojas(
+        array $hojas,
+        ?int $organizacionIdContenido = null,
+        ?VersionInstrumento $versionExistente = null,
+    ): ReporteImportacion {
+        $this->reiniciar();
 
         try {
             DB::transaction(function () use ($hojas, $organizacionIdContenido, $versionExistente): void {
@@ -98,6 +123,7 @@ class ImportadorInstrumento
                 $this->importarClaves($version, $hojas['claves'] ?? []);
                 $this->importarBaremos($version, $hojas['baremos'] ?? []);
                 $this->importarInterpretaciones($version, $hojas['interpretaciones'] ?? []);
+                $this->importarPipeline($version, $hojas['pipeline'] ?? []);
 
                 if ($this->reporte->tieneErrores()) {
                     /*
@@ -113,6 +139,15 @@ class ImportadorInstrumento
         }
 
         return $this->reporte;
+    }
+
+    private function reiniciar(): void
+    {
+        $this->reporte = new ReporteImportacion;
+        $this->escalas = [];
+        $this->bloques = [];
+        $this->reactivos = [];
+        $this->opciones = [];
     }
 
     /**
@@ -667,6 +702,80 @@ class ImportadorInstrumento
      * importador reviente con "Undefined array key" en vez de reportar la fila,
      * que es exactamente lo contrario de lo que se le pide.
      *
+     * @param  array<string, string>  $fila
+     */
+    /**
+     * La hoja `pipeline`: qué etapas corre este instrumento y con qué
+     * estrategia (Doc 05 §1.3).
+     *
+     * NO estaba en la plantilla del Doc 04 porque esa plantilla es anterior al
+     * motor de calificación. Sin ella, un instrumento importado carga, publica
+     * y se asigna — y no calcula nada: todas sus escalas salen en cero y el
+     * resultado parece un perfil plano en vez de un instrumento sin configurar.
+     *
+     * Los parámetros van en la misma fila, con el prefijo `param_`:
+     * `param_umbral_pct`, `param_escala`. Una tabla hija en la hoja obligaría a
+     * inventar identificadores de fila que nadie quiere escribir a mano.
+     *
+     * @param  list<array<string, string>>  $filas
+     */
+    private function importarPipeline(VersionInstrumento $version, array $filas): void
+    {
+        foreach ($filas as $fila) {
+            $numeroFila = (int) $this->valor($fila, '__fila', '0');
+            $etapa = $this->valor($fila, 'etapa');
+            $estrategia = $this->valor($fila, 'estrategia');
+
+            if ($etapa === '' || $estrategia === '') {
+                $this->reporte->error('pipeline', $numeroFila, 'Faltan la etapa o la estrategia.');
+
+                continue;
+            }
+
+            /*
+             * Se comprueba contra el REGISTRO. Una clave mal escrita produciría
+             * un instrumento que publica y luego revienta al calificar la
+             * primera aplicación real, con la persona ya habiendo contestado.
+             */
+            if (! app(RegistroEstrategias::class)->conoce($estrategia)) {
+                $this->reporte->error(
+                    'pipeline',
+                    $numeroFila,
+                    sprintf('No hay estrategia registrada con la clave «%s».', $estrategia),
+                    'estrategia',
+                );
+
+                continue;
+            }
+
+            $registro = EtapaPipeline::query()->updateOrCreate(
+                [
+                    'version_instrumento_id' => $version->id,
+                    'etapa' => $etapa,
+                    'estrategia_clave' => $estrategia,
+                ],
+                ['orden' => (int) $this->valor($fila, 'orden', '0'), 'activa' => true],
+            );
+
+            foreach ($fila as $columna => $valor) {
+                if (! str_starts_with($columna, 'param_') || $valor === '') {
+                    continue;
+                }
+
+                ParametroPipeline::query()->updateOrCreate(
+                    [
+                        'instrumento_pipeline_id' => $registro->id,
+                        'clave' => substr($columna, strlen('param_')),
+                    ],
+                    ['valor' => $valor],
+                );
+            }
+
+            $this->reporte->contar('pipeline');
+        }
+    }
+
+    /**
      * @param  array<string, string>  $fila
      */
     private function valor(array $fila, string $columna, string $porOmision = ''): string

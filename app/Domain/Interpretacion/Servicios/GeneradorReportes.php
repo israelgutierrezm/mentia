@@ -248,10 +248,54 @@ class GeneradorReportes
                 ? ''
                 : $aplicacion->persona->nombreCompleto(),
 
-            'escalas' => $resultado['escalas'] ?? [],
+            'escalas' => $this->conAnchoDeBarra($resultado['escalas'] ?? []),
             'interpretaciones' => $resultado['interpretaciones'],
             'generado_en' => Carbon::now()->format('d/m/Y'),
         ];
+    }
+
+    /**
+     * Agrega el ancho de la barra del perfil.
+     *
+     * Se calcula AQUÍ y no en la plantilla porque la plantilla sólo sustituye
+     * marcadores —no compila nada— y porque cada tipo de norma tiene su propio
+     * tope: dibujar un percentil y una puntuación T sobre la misma escala haría
+     * que una T de 80 se saliera de la caja.
+     *
+     * Sin norma no hay barra: un bruto pintado junto a percentiles se lee como
+     * si significara lo mismo, y no significa nada fuera de su aplicación.
+     *
+     * @param  list<array<string, mixed>>  $escalas
+     * @return list<array<string, mixed>>
+     */
+    private function conAnchoDeBarra(array $escalas): array
+    {
+        $topes = [
+            'percentil' => 100.0,
+            'T' => 100.0,
+            'ci_desviacion' => 160.0,
+            'decatipo' => 10.0,
+            'estanina' => 9.0,
+        ];
+
+        foreach ($escalas as $indice => $escala) {
+            $normalizado = $escala['normalizado'] ?? null;
+            $tipo = $escala['tipo_norma'] ?? null;
+
+            $dibujable = $normalizado !== null
+                && is_numeric($normalizado)
+                && isset($topes[$tipo]);
+
+            $escalas[$indice]['ancho_pct'] = $dibujable
+                ? (string) round(min(100, max(0, ((float) $normalizado / $topes[$tipo]) * 100)), 1)
+                : '0';
+
+            $escalas[$indice]['aviso_sin_norma'] = ($escala['sin_norma'] ?? false)
+                ? 'Sin baremo aplicable: el puntaje no es comparable.'
+                : '';
+        }
+
+        return $escalas;
     }
 
     /**

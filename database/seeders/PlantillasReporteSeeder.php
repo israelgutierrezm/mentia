@@ -66,6 +66,20 @@ class PlantillasReporteSeeder extends Seeder
                 th { color: #475569; font-weight: 600; }
                 .aviso { background: #fef3c7; padding: 8px; margin: 10px 0; font-size: 10pt; }
                 .pie { margin-top: 26px; color: #64748b; font-size: 9pt; border-top: 1px solid #cbd5e1; padding-top: 8px; }
+
+                /*
+                 * El perfil gráfico. Barras con `width` en porcentaje y no un
+                 * SVG: dompdf dibuja cajas de forma fiable y el soporte de SVG
+                 * es parcial, y un reporte que se ve bien en el navegador y
+                 * roto en el PDF es peor que uno sin gráfica.
+                 *
+                 * Sólo se pinta barra cuando hay norma. Un bruto dibujado junto
+                 * a percentiles se lee como si significara lo mismo, y no
+                 * significa nada fuera de su propia aplicación.
+                 */
+                .barra { background: #e2e8f0; height: 9px; width: 100%; margin-top: 2px; }
+                .barra div { background: #2563eb; height: 9px; }
+                .sinnorma { color: #b45309; font-size: 9pt; }
             </style>
             CSS;
     }
@@ -85,13 +99,16 @@ class PlantillasReporteSeeder extends Seeder
 
             <h2>Perfil por escalas</h2>
             <table>
-                <tr><th>Escala</th><th>Bruto</th><th>Norma</th><th>Valor</th></tr>
+                <tr><th style="width:38%">Escala</th><th style="width:14%">Bruto</th><th>Perfil</th></tr>
                 {{#escalas}}
                 <tr>
                     <td>{{ nombre }}</td>
                     <td>{{ bruto }}</td>
-                    <td>{{ tipo_norma }}</td>
-                    <td>{{ normalizado }} {{ etiqueta }}</td>
+                    <td>
+                        {{ normalizado }} {{ tipo_norma }} {{ etiqueta }}
+                        <div class="barra"><div style="width: {{ ancho_pct }}%"></div></div>
+                        <span class="sinnorma">{{ aviso_sin_norma }}</span>
+                    </td>
                 </tr>
                 {{/escalas}}
             </table>

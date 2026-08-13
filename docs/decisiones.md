@@ -1204,3 +1204,80 @@ llave que ya no existe y no sirve para nada.
 
 Y una regla al final: **una prueba automatizada por cada fuga real**. Un
 incidente que no deja una prueba detrás se repite.
+
+## Pendientes — cargador de instrumentos, verificación de respaldo y perfil en PDF
+
+### La maquinaria de la Fase 4, sin el contenido
+
+El Doc 08 dice que la Fase 4 está bloqueada por los textos, pero que "lo que sí
+se puede construir sin ellos es la maquinaria". Eso es lo que se construyó:
+
+- `mentia:seed-instrumentos {clave?}` carga archivos de datos versionados desde
+  `database/seeds/instrumentos`, con `--publicar`, `--rehacer` y `--directorio`.
+- Entra por el MISMO servicio que el importador de Excel
+  (`ImportadorInstrumento::importarHojas`), extraído para eso. Los dos caminos
+  comparten validación, reporte fila a fila y rollback total: una segunda ruta
+  de importación con sus propias reglas acabaría admitiendo contenido que la
+  primera rechaza.
+- `InstrumentosSembradosTest` recorre lo que haya, lo carga, lo publica y corre
+  sus casos dorados. Mientras el directorio esté vacío se salta con un mensaje
+  que dice por qué.
+
+**Archivos PHP y no Excel** para el seed oficial. El importador lee Excel porque
+un tenant captura desde una hoja de cálculo; el seed oficial es contenido que se
+revisa en un pull request, se compara línea a línea entre versiones y necesita
+llevar comentarios explicando de dónde salió cada corte. Un `.xlsx` en git es un
+binario: no se diffea, no se comenta y no se revisa.
+
+**El arnés se prueba a sí mismo.** `InstrumentoSinteticoTest` hereda del mismo
+arnés y lo apunta a un instrumento de prueba en `tests/Apoyo/instrumentos`.
+Andamio sin probar se rompe justo el día que llega el contenido; así el camino
+completo —cargar, publicar, no duplicar, calificar los casos dorados, incluida
+la reflexión de un reactivo inverso— corre en cada suite.
+
+El instrumento sintético es deliberadamente absurdo —sus enunciados dicen
+«Reactivo sintético uno»— para que a nadie se le ocurra aplicarlo, y vive en
+`tests/`, no en el directorio del contenido oficial.
+
+### Faltaba la hoja `pipeline` en la plantilla
+
+La plantilla del Doc 04 tiene ocho hojas y es ANTERIOR al motor de calificación
+de la Fase 7. Sin una novena que diga qué etapas corre el instrumento y con qué
+estrategia, un instrumento importado carga, publica y se asigna — y no calcula
+nada: todas sus escalas salen en cero y el resultado parece un perfil plano en
+vez de un instrumento sin configurar.
+
+Los parámetros van en la misma fila con prefijo `param_`. Una tabla hija en la
+hoja obligaría a inventar identificadores de fila que nadie quiere escribir a
+mano.
+
+La clave de estrategia se valida contra `RegistroEstrategias` al importar: una
+clave mal escrita produciría un instrumento que publica y luego revienta al
+calificar la primera aplicación real, con la persona ya habiendo contestado.
+
+### `mentia:verificar-respaldo`
+
+Que el volcado cargue no prueba nada. Lo que hay que verificar es que **los
+datos cifrados se lean**: un respaldo cuyo contenido se cifró con una `APP_KEY`
+que ya no existe está completo, íntegro y no sirve para nada.
+
+El comando apunta la conexión a la base restaurada con `--base`, sin tocar el
+`.env`: un comando de verificación que exija cambiar la configuración del
+entorno acaba corriéndose contra producción por accidente.
+
+Recorre las mismas `COLUMNAS_CIFRADAS` que la rotación —una sola definición de
+qué está cifrado— y falla si algo no se descifra.
+
+### El perfil gráfico llegó al PDF
+
+Barras con `width` en porcentaje, no SVG: dompdf dibuja cajas de forma fiable y
+su soporte de SVG es parcial, y un reporte que se ve bien en el navegador y roto
+en el PDF es peor que uno sin gráfica.
+
+El ancho se calcula en el generador y no en la plantilla, porque la plantilla
+sólo sustituye marcadores —no compila nada— y porque cada tipo de norma tiene su
+propio tope: dibujar un percentil y una puntuación T sobre la misma escala haría
+que una T de 80 se saliera de la caja.
+
+Sin norma no se pinta barra, se pone el aviso. Un bruto dibujado junto a
+percentiles se lee como si significara lo mismo.

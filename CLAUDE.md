@@ -72,8 +72,15 @@ Todo el detalle está en `docs/convenciones.md`.
 
 ## Estado
 
-**Fases 0, 1, 2, 3, 5, 6, 7, 8 y 9 completas.** 332 pruebas verdes, Pint limpio,
+**Fases 0, 1, 2, 3, 5, 6, 7, 8 y 9 completas.** 336 pruebas verdes, Pint limpio,
 PHPStan nivel 6 sin errores, `npm run build` OK.
+
+**La maquinaria de la Fase 4 ya está**, sólo falta el contenido:
+`mentia:seed-instrumentos` carga archivos de datos versionados por el MISMO
+servicio que el importador de Excel, la plantilla ganó su novena hoja
+(`pipeline`) y `InstrumentosSembradosTest` es el arnés que espera al material
+revisado — probado contra un instrumento sintético para que no se rompa el día
+que llegue.
 
 **Cerrado el pendiente de seguridad:** las cuatro columnas del Doc 06 §4 van
 cifradas —faltaban `expediente_valores.valor_texto` y
@@ -250,14 +257,13 @@ sección con su permiso y el middleware comparte la prop `menu` filtrada.
 
 **Dos bloqueos estructurales más adelante, ya identificados:**
 
-- **La Fase 4 no se puede hacer sin contenido.** El Doc 08 dice que los textos
-  de reactivos e interpretaciones "se entregan como archivos de datos
-  versionados" en `/database/seeds/instrumentos/`, y ese directorio no existe.
-  Los reactivos del PHQ-9, del M-CHAT-R/F y de las Guías de Referencia de la
-  NOM-035 **no se inventan**: un instrumento sembrado con ítems aproximados
-  produce puntajes que parecen válidos y no lo son. Lo que sí se puede
-  construir sin ellos es la maquinaria: el importador de Excel del Doc 04, los
-  seeders y el arnés de casos dorados.
+- **La Fase 4 sigue sin contenido, pero ya no sin maquinaria.** El directorio
+  `database/seeds/instrumentos/` existe con su LEEME y su formato; lo que falta
+  son los archivos. Los reactivos del PHQ-9, del M-CHAT-R/F y de las Guías de
+  Referencia de la NOM-035 **no se inventan**: un instrumento sembrado con ítems
+  aproximados produce puntajes que parecen válidos y no lo son. El día que
+  lleguen revisados, `mentia:seed-instrumentos` los carga y las pruebas de que
+  califican bien ya están escritas.
 - **La Fase 10 es un proyecto Flutter aparte**, en Dart. No vive en este repo.
 
 ### Fase 0 (fundación). Lo que hay:
