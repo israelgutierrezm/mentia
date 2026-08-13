@@ -7,7 +7,9 @@ namespace Tests\Feature\Evaluaciones;
 use App\Domain\Alertas\Modelos\Alerta;
 use App\Domain\Catalogo\Modelos\ReglaSalto;
 use App\Domain\Evaluaciones\Excepciones\AplicacionInvalida;
+use App\Domain\Evaluaciones\Modelos\Aplicacion;
 use App\Domain\Evaluaciones\Modelos\Respuesta;
+use App\Domain\Evaluaciones\Servicios\GestorTokens;
 use App\Domain\Evaluaciones\Servicios\MotorAplicacion;
 use App\Domain\Evaluaciones\Servicios\RegistroRespuestas;
 use App\Jobs\CalificarAplicacion;
@@ -498,5 +500,227 @@ class MotorAplicacionTest extends TestCase
         $this->expectException(AplicacionInvalida::class);
 
         $escenario->iniciar();
+    }
+
+    // ── Corrección de respuesta ───────────────────────────────────────────
+
+    public function test_cambiar_de_opcion_corrige_la_respuesta_en_vez_de_agregar_otra(): void
+    {
+        $tenant = EscenarioTenant::nuevo()->activar();
+        $escenario = new EscenarioAplicacion($tenant);
+        $reactivos = $escenario->reactivos(1);
+
+        $aplicacion = $escenario->iniciar();
+
+        $this->registro()->recibir($aplicacion, [
+            EscenarioAplicacion::respuesta($reactivos[0]->codigo, 1),
+        ]);
+
+        $resultado = $this->registro()->recibir($aplicacion, [
+            EscenarioAplicacion::respuesta($reactivos[0]->codigo, 4),
+        ]);
+
+        /*
+         * La gente cambia de respuesta. Si cada cambio dejara su fila, el
+         * pipeline sumaría el mismo reactivo dos veces y el puntaje saldría
+         * inflado sin que nada se vea roto.
+         */
+        $this->assertSame(1, $resultado['corregidas']);
+        $this->assertSame(
+            1,
+            Respuesta::query()->where('reactivo_id', $reactivos[0]->id)->count(),
+            'Una respuesta vigente por reactivo.'
+        );
+        $this->assertSame(
+            '4.000',
+            (string) Respuesta::query()->where('reactivo_id', $reactivos[0]->id)->value('valor_numerico')
+        );
+    }
+
+    public function test_un_lote_viejo_que_llega_tarde_no_deshace_la_correccion(): void
+    {
+        $tenant = EscenarioTenant::nuevo()->activar();
+        $escenario = new EscenarioAplicacion($tenant);
+        $reactivos = $escenario->reactivos(1);
+
+        $aplicacion = $escenario->iniciar();
+
+        // La corrección, contestada hace un minuto.
+        $this->registro()->recibir($aplicacion, [
+            EscenarioAplicacion::respuesta(
+                $reactivos[0]->codigo,
+                4,
+                respondidaEn: Carbon::now()->subMinute()->toIso8601String(),
+            ),
+        ]);
+
+        /*
+         * Y ahora entra el paquete original, contestado hace diez minutos y
+         * sincronizado hasta ahora: es el caso normal del modo offline de la
+         * V3, donde los lotes llegan desordenados.
+         */
+        $this->registro()->recibir($aplicacion, [
+            EscenarioAplicacion::respuesta(
+                $reactivos[0]->codigo,
+                1,
+                respondidaEn: Carbon::now()->subMinutes(10)->toIso8601String(),
+            ),
+        ]);
+
+        $this->assertSame(
+            '4.000',
+            (string) Respuesta::query()->where('reactivo_id', $reactivos[0]->id)->value('valor_numerico'),
+            'Gana la más reciente por respondida_en, no la última en llegar.'
+        );
+    }
+
+    public function test_el_ranking_si_guarda_una_fila_por_opcion(): void
+    {
+        $tenant = EscenarioTenant::nuevo()->activar();
+        $escenario = new EscenarioAplicacion($tenant);
+        $reactivo = $escenario->asignacion->instrumento->reactivo('ranking', 'E1');
+
+        $aplicacion = $escenario->iniciar();
+
+        $opciones = $reactivo->opciones()->orderBy('id')->get();
+
+        $lote = [];
+
+        foreach ($opciones as $posicion => $opcion) {
+            $lote[] = [
+                'uuid_cliente' => (string) Str::uuid(),
+                'reactivo_codigo' => $reactivo->codigo,
+                'opcion_codigo' => $opcion->codigo,
+                'posicion_ranking' => $posicion + 1,
+            ];
+        }
+
+        $this->registro()->recibir($aplicacion, $lote);
+
+        /*
+         * Aquí la corrección NO puede colapsar filas: el orden completo es la
+         * respuesta, y quedarse con una sola opción perdería el ranking.
+         */
+        $this->assertSame(
+            $opciones->count(),
+            Respuesta::query()->where('reactivo_id', $reactivo->id)->count()
+        );
+    }
+
+    public function test_cambiar_el_mas_de_un_ipsativo_no_deja_dos_marcados(): void
+    {
+        $tenant = EscenarioTenant::nuevo()->activar();
+        $escenario = new EscenarioAplicacion($tenant);
+        $reactivo = $escenario->asignacion->instrumento->reactivo(
+            'eleccion_forzada_cuadro',
+            'E1',
+            ['Opción A', 'Opción B', 'Opción C', 'Opción D'],
+        );
+
+        $aplicacion = $escenario->iniciar();
+
+        $opciones = $reactivo->opciones()->orderBy('id')->get();
+        $primera = $opciones->first();
+        $segunda = $opciones->get(1);
+        $tercera = $opciones->get(2);
+
+        $this->registro()->recibir($aplicacion, [
+            $this->ipsativa($reactivo->codigo, $primera->codigo, 'mas'),
+            $this->ipsativa($reactivo->codigo, $segunda->codigo, 'menos'),
+        ]);
+
+        // Se arrepiente: ahora la que más lo describe es la tercera.
+        $this->registro()->recibir($aplicacion, [
+            $this->ipsativa($reactivo->codigo, $tercera->codigo, 'mas'),
+            $this->ipsativa($reactivo->codigo, $segunda->codigo, 'menos'),
+        ]);
+
+        $marcadasComoMas = Respuesta::query()
+            ->where('reactivo_id', $reactivo->id)
+            ->where('rol_ipsativo', 'mas')
+            ->get();
+
+        /*
+         * Un cuadro ipsativo con dos «más» no puntúa: la puntuación sale de la
+         * diferencia entre lo elegido y lo descartado, y con dos elegidos no
+         * hay diferencia que calcular.
+         */
+        $this->assertCount(1, $marcadasComoMas);
+        $this->assertSame($tercera->id, $marcadasComoMas->first()->opcion_id);
+        $this->assertSame(2, Respuesta::query()->where('reactivo_id', $reactivo->id)->count());
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function ipsativa(string $reactivo, string $opcion, string $rol): array
+    {
+        return [
+            'uuid_cliente' => (string) Str::uuid(),
+            'reactivo_codigo' => $reactivo,
+            'opcion_codigo' => $opcion,
+            'rol_ipsativo' => $rol,
+        ];
+    }
+
+    // ── Canje del token, sin sesión ───────────────────────────────────────
+
+    public function test_el_canje_arranca_la_aplicacion_sin_sesion(): void
+    {
+        $tenant = EscenarioTenant::nuevo()->activar();
+        $escenario = new EscenarioAplicacion($tenant);
+        $escenario->reactivos(3);
+
+        $token = app(GestorTokens::class)->generar($escenario->destinatario);
+
+        // Sin `actingAs`: quien contesta por liga puede no tener cuenta.
+        $respuesta = $this->postJson('/api/v1/aplicaciones/iniciar', ['token' => $token]);
+
+        $respuesta->assertStatus(201)
+            ->assertJsonStructure(['aplicacion_uuid', 'instrumento', 'modo_presentacion', 'bloques'])
+            ->assertJsonMissing(['enunciado']);
+    }
+
+    public function test_volver_a_canjear_el_token_devuelve_la_misma_aplicacion(): void
+    {
+        $tenant = EscenarioTenant::nuevo()->activar();
+        $escenario = new EscenarioAplicacion($tenant);
+        $escenario->reactivos(3);
+
+        $token = app(GestorTokens::class)->generar($escenario->destinatario);
+
+        $primera = $this->postJson('/api/v1/aplicaciones/iniciar', ['token' => $token]);
+        $primera->assertStatus(201);
+
+        /*
+         * Cerrar la pestaña y volver a picar la liga del correo. Sin esto, la
+         * persona se queda fuera de su propia evaluación a medio contestar y el
+         * instrumento se abandona sin que nadie sepa por qué.
+         */
+        $segunda = $this->postJson('/api/v1/aplicaciones/iniciar', ['token' => $token]);
+
+        $segunda->assertStatus(201);
+        $this->assertSame(
+            $primera->json('aplicacion_uuid'),
+            $segunda->json('aplicacion_uuid'),
+            'Reanudar no puede abrir una aplicación nueva.'
+        );
+        $this->assertSame(1, Aplicacion::query()->count());
+    }
+
+    public function test_un_token_invalido_responde_410_sin_decir_por_que(): void
+    {
+        $respuesta = $this->postJson('/api/v1/aplicaciones/iniciar', [
+            'token' => str_repeat('f', 64),
+        ]);
+
+        $respuesta->assertStatus(410);
+
+        /*
+         * Un mensaje que distinguiera "no existe" de "ya se usó" le confirmaría
+         * a quien prueba tokens al azar que acertó uno.
+         */
+        $this->assertStringNotContainsString('usado', (string) $respuesta->json('detail'));
+        $this->assertStringNotContainsString('expir', (string) $respuesta->json('detail'));
     }
 }

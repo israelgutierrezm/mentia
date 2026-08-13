@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Web\AgrupacionController;
 use App\Http\Controllers\Web\AlcanceController;
+use App\Http\Controllers\Web\AplicacionController;
 use App\Http\Controllers\Web\BateriaController;
+use App\Http\Controllers\Web\CapturaProtocoloController;
 use App\Http\Controllers\Web\CatalogoController;
 use App\Http\Controllers\Web\ConsentimientoController;
 use App\Http\Controllers\Web\ExpedienteController;
@@ -31,6 +33,20 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', PanelController::class)->name('panel');
+
+/*
+ * CONTESTAR. Pública, sin sesión y sin organización activa.
+ *
+ * Quien recibe una liga por correo puede no tener cuenta en nada: una madre
+ * que responde el M-CHAT sobre su hijo no se registra. El token es su
+ * credencial y viaja en el FRAGMENTO de la liga (`/contestar#<token>`), que no
+ * llega al servidor; el canje lo hace el navegador contra `/api/v1`.
+ *
+ * Por eso esta ruta no recibe el token como parámetro: si lo hiciera, la
+ * credencial quedaría escrita en el log de accesos del servidor web y en cada
+ * proxy por el que pase la petición.
+ */
+Route::get('contestar', [AplicacionController::class, 'contestar'])->name('contestar');
 
 /*
  * PORTAL DEL TITULAR. Sin organización activa a propósito: la persona entra a
@@ -123,6 +139,16 @@ Route::middleware(['auth', 'organizacion'])->group(function (): void {
             ->name('baterias.activar');
         Route::post('baterias/{bateria}/archivar', [BateriaController::class, 'archivar'])
             ->name('baterias.archivar');
+    });
+
+    // ── Captura de protocolo ──────────────────────────────────────────────
+    // Con sesión, a diferencia del resto del motor: lo hace un profesional
+    // identificado, no quien contesta con una liga.
+    Route::middleware('can:protocolos.capturar')->group(function (): void {
+        Route::get('captura-protocolo', [CapturaProtocoloController::class, 'index'])
+            ->name('captura-protocolo.index');
+        Route::post('captura-protocolo', [CapturaProtocoloController::class, 'store'])
+            ->name('captura-protocolo.store');
     });
 
     // ── Tutorías ──────────────────────────────────────────────────────────

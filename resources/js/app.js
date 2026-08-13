@@ -10,18 +10,35 @@ const nombre = import.meta.env.VITE_APP_NAME || 'Mentia';
 createInertiaApp({
     title: (titulo) => (titulo ? `${titulo} · ${nombre}` : nombre),
 
-    resolve: (pagina) => {
-        const paginas = import.meta.glob('./Pages/**/*.vue', { eager: true });
-        const componente = paginas[`./Pages/${pagina}.vue`];
+    /*
+     * El glob NO es `eager`: cada página es su propio trozo y se baja cuando se
+     * visita. Con `eager: true` el paquete es uno solo, y entonces quien entra a
+     * `/contestar` desde un celular con mala señal se descarga el panel de
+     * administración entero —baterías, catálogo, roles— para ver cinco
+     * reactivos. La pantalla pública es justamente la que peor red tiene.
+     */
+    resolve: async (pagina) => {
+        const paginas = import.meta.glob('./Pages/**/*.vue');
+        const cargar = paginas[`./Pages/${pagina}.vue`];
 
-        if (!componente) {
+        if (!cargar) {
             throw new Error(`No existe la página Inertia "${pagina}".`);
         }
 
-        // El layout se aplica por omisión; una página lo cambia declarando
-        // su propio `layout`. Así una pantalla pública —el canje de token
-        // anónimo, sin sesión— no arrastra la barra lateral del panel.
-        componente.default.layout ??= LayoutAdmin;
+        const componente = await cargar();
+
+        /*
+         * El layout se aplica por omisión; una página lo cambia declarando su
+         * propio `layout`. Así una pantalla pública —el canje de token anónimo,
+         * sin sesión— no arrastra la barra lateral del panel.
+         *
+         * La comparación es contra `undefined` y no un `??=`: una página que
+         * declara `layout: null` está diciendo "ninguno", y `??=` se lo
+         * sobrescribiría con el del panel justo en el caso que quiere evitarlo.
+         */
+        if (componente.default.layout === undefined) {
+            componente.default.layout = LayoutAdmin;
+        }
 
         return componente;
     },

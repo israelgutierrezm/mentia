@@ -532,3 +532,135 @@ como "último día". Si la suite corría antes de las diez de la mañana, ese
 instante quedaba después de `ventana_fin` y la ventana ya estaba cerrada: la
 prueba fallaba por la hora, no por el código. Ahora usa
 `ventana_fin->subMinutes(5)`.
+
+## Fase 6 — Motor de aplicación
+
+### El contenido se entrega parcelado y el cronómetro es del servidor
+
+Las dos reglas que gobiernan `MotorAplicacion`. `iniciar()` devuelve la
+estructura —cuántos bloques, cuántos reactivos, cuánto tiempo— y ningún
+enunciado; los reactivos se piden bloque por bloque con tope de 50. Un endpoint
+que devolviera el instrumento completo sería la forma más cómoda de descargarse
+una prueba con copyright.
+
+El cronómetro se calcula desde `aplicacion_bloques.iniciado_en` y el cliente
+sólo lo muestra. Si el cliente llevara la cuenta, cambiar la hora del sistema
+bastaría para tener el doble de tiempo — y en una prueba de velocidad el tiempo
+**es** el constructo.
+
+El reloj del bloque arranca cuando se piden sus reactivos, no al iniciar la
+aplicación: si no, una batería de cuatro instrumentos consumiría el tiempo de
+los cuatro a la vez.
+
+### Los saltos se resuelven en el servidor
+
+`ResolutorSaltos` filtra qué reactivos son visibles antes de entregar el tramo.
+Mandarle el árbol de reglas al cliente le entregaría el mapa del instrumento.
+
+### Los centinelas se evalúan síncronos, dentro de la petición del lote
+
+Es la diferencia entre enterarse de una ideación suicida ahora, con la persona
+todavía en la pantalla, o mañana cuando la cola termine de calificar. Todo lo
+demás del pipeline sí es asíncrono.
+
+### El token vuelve a entrar mientras la aplicación sigue en curso
+
+La regla de "un solo uso" que se escribió con el token protege del reenvío por
+WhatsApp y castiga el caso mucho más común: quien cierra la pestaña a la mitad y
+vuelve a picar la liga del correo. Con la regla estricta, cada cierre accidental
+abandonaba un instrumento a medias y nadie sabía por qué.
+
+Ahora `tokenVigente()` deja pasar un token ya canjeado **mientras el
+destinatario está `en_curso`**. Lo que el token no puede hacer nunca es abrir un
+intento nuevo: al completarse la aplicación el estado pasa a `completada` y el
+token muere. `token_usado_en` conserva la fecha del primer canje, que es la que
+sirve en la bitácora.
+
+Lo destapó construir la pantalla: `canjear()` quemaba el token **antes** de que
+`iniciar()` corriera, así que un fallo al arrancar dejaba a la persona fuera de
+su propia evaluación sin recurso.
+
+### La liga lleva el token en el fragmento, no en la ruta
+
+`/contestar#<token>` y no `/contestar/<token>`. Lo que va después de `#` no se
+manda al servidor: no aparece en el log de accesos del servidor web, ni en el
+proxy corporativo, ni en el `Referer` de ninguna liga que salga de la página.
+Con el token en la ruta, la credencial de quien contesta un tamizaje clínico
+queda escrita en texto plano en cada capa por la que pasa la petición.
+
+La página lo lee del navegador, lo canjea por POST y lo borra de la barra de
+direcciones con `replaceState`. La captura a mano del código sigue existiendo
+porque un reescritor de ligas corporativo puede comerse el fragmento.
+
+### Cambiar de respuesta corrige la fila; no agrega otra
+
+La migración de `respuestas` ya encargaba esta comprobación al servicio y el
+servicio no la hacía. El único de la base es `(aplicacion, reactivo, opcion)`,
+así que quien marcaba "Nunca" y se corregía a "Siempre" dejaba **las dos filas**
+y el pipeline habría sumado el mismo reactivo dos veces: un puntaje inflado sin
+que nada se viera roto. La gente cambia de respuesta todo el tiempo; la pantalla
+de contestar convierte esto en el caso normal.
+
+En ranking e ipsativos no se corrige fila por fila: la respuesta es el
+**conjunto**. Cambiar cuál opción es la que "más" describe dejaría la anterior
+marcada y el cuadro tendría dos «más», que no puntúa; y reordenar un ranking
+chocaría contra el único de la base a medio camino. Se borra el conjunto
+anterior una vez por lote y se escribe completo.
+
+En ambos casos gana la más reciente **por `respondida_en`**, no por orden de
+llegada: en el modo offline de la V3 los lotes se sincronizan desordenados, y
+sin esa regla un paquete viejo que llega tarde deshace una corrección posterior.
+
+### Dos límites de tasa distintos en el motor
+
+El canje es adivinable —por ahí entra quien prueba tokens al azar— y va
+estrangulado a 30 por minuto. El resto de los endpoints exige ya el uuid de una
+aplicación existente, y estrangularlos igual sacaba a quien contesta rápido de
+su propia evaluación a la mitad. Eso no protege nada: sólo abandona
+instrumentos. Van a 180.
+
+Del lado del cliente, las respuestas se juntan segundo y medio antes de mandar.
+El endpoint recibe lotes justamente para eso; una petición por clic convierte un
+tamizaje de treinta reactivos en treinta viajes de red.
+
+### La pantalla de contestar tiene bandeja de salida
+
+Una respuesta emitida entra a una cola local y no sale de ahí hasta que el
+servidor la acuse; se reintenta cada diez segundos y avisa que no hay conexión.
+El `uuid_cliente` se genera en el navegador antes de mandar, que es lo que hace
+que reintentar sea gratis. Un celular con mala señal a media prueba no puede
+costar los ítems ya contestados.
+
+Un 422 no se reintenta: es del contenido del lote, no de la red, y reintentarlo
+sería un ciclo infinito que además bloquea todo lo que viene detrás.
+
+### La pantalla de cierre no dice qué salió
+
+Ni un puntaje, ni una categoría, ni un color. El resultado en crudo no se le
+comunica a quien contestó: es una interpretación sin nadie que la sostenga, y en
+un tamizaje clínico eso hace daño. El sistema sugiere, el profesional
+diagnostica.
+
+### El modo se declara en datos, no con ramas
+
+`resources/js/Aplicacion/modos.js` describe los seis modos —tamaño de letra,
+tamaño de botón, si hay progreso, si hay cronómetro, si hay refuerzos, si hay
+audio— y los componentes lo leen. Agregar el modo kiosco de la V4 es una entrada
+más, no una cadena de `if` repartida por doce archivos.
+
+El infantil usa `speechSynthesis` del navegador y no un servicio de voz externo:
+mandar el enunciado de un instrumento con copyright a una API de terceros para
+que lo lea sería distribuir su contenido.
+
+Los tipos de reactivo sin componente todavía —los de multimedia y los de
+aplicación presencial— se dibujan con un aviso visible, no con una pantalla en
+blanco. Un hueco silencioso en mitad de una prueba se lee como error de quien
+contesta, y el instrumento se abandona sin que nadie sepa por qué.
+
+### Las páginas Inertia se cargan por trozos
+
+El glob de `app.js` dejó de ser `eager`. Con un solo paquete, quien entraba a
+`/contestar` desde un celular se descargaba el panel de administración entero
+—baterías con su librería de arrastre, catálogo, roles: 540 kB— para ver cinco
+reactivos. La pantalla pública es justamente la que peor red tiene. Ahora son
+19 kB.

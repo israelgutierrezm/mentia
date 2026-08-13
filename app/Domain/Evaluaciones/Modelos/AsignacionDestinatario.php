@@ -96,16 +96,30 @@ class AsignacionDestinatario extends Modelo
      * ¿El token sirve todavía?
      *
      * Tres condiciones y las tres importan:
-     *  - no se ha usado (es de UN SOLO USO),
+     *  - no se ha consumido —y "consumido" significa que ya no queda nada que
+     *    contestar, no que se haya canjeado una vez—,
      *  - no ha expirado por su propia fecha,
      *  - y la ventana de la asignación sigue abierta.
      *
      * La tercera es la que se olvida: cerrar una asignación tiene que invalidar
      * sus tokens al instante, sin esperar a que cada uno venza por su cuenta.
+     *
+     * SOBRE EL UN SOLO USO. Un token canjeado sigue sirviendo MIENTRAS el
+     * destinatario está `en_curso`. La regla estricta —muerto al primer canje—
+     * es correcta contra la liga reenviada, y equivocada contra el caso mucho
+     * más común: quien cierra la pestaña a la mitad y vuelve a picar la liga del
+     * correo. Con ella, cada cierre accidental abandona un instrumento a medias
+     * y nadie sabe por qué. Lo que el token no puede hacer nunca es abrir un
+     * intento NUEVO: en cuanto la aplicación se completa, el estado pasa a
+     * `completada` y esto devuelve false.
      */
     public function tokenVigente(?Carbon $al = null): bool
     {
-        if ($this->token === null || $this->token_usado_en !== null) {
+        if ($this->token === null) {
+            return false;
+        }
+
+        if ($this->token_usado_en !== null && $this->estado !== 'en_curso') {
             return false;
         }
 

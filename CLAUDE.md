@@ -72,8 +72,8 @@ Todo el detalle está en `docs/convenciones.md`.
 
 ## Estado
 
-**Fases 0, 1, 2, 3 y 5 completas.** 169 pruebas verdes, Pint limpio, PHPStan nivel 6
-sin errores, `npm run build` OK.
+**Fases 0, 1, 2, 3, 5 y 6 completas.** 201 pruebas verdes, Pint limpio, PHPStan
+nivel 6 sin errores, `npm run build` OK.
 
 **Fase 2 (M4) — expediente y consentimientos:**
 
@@ -131,8 +131,41 @@ sin errores, `npm run build` OK.
   último día. El job corre con `sinRestriccion()` porque los global scopes
   fallan cerrado.
 
-**Sigue la Fase 6** (M7: motor de aplicación web), que es la continuación
-natural — o la **Fase 4** cuando haya contenido de instrumentos.
+**Fase 6 (M7) — motor de aplicación:**
+
+- **Contenido parcelado y cronómetro server-side**, las dos reglas que gobiernan
+  `MotorAplicacion`. `iniciar()` entrega la estructura sin ningún enunciado; los
+  reactivos salen bloque por bloque con tope de 50. El reloj del bloque arranca
+  cuando se piden sus reactivos, no al iniciar la aplicación.
+- `iniciar()` es **idempotente**: recargar reanuda, no empieza de cero.
+- **Saltos resueltos en el servidor** (`ResolutorSaltos`): el árbol de reglas
+  nunca sale al cliente.
+- Respuestas **por lotes, idempotentes por `uuid_cliente`**. Cambiar de
+  respuesta **corrige la fila**; en ranking e ipsativos se reemplaza el conjunto
+  completo. Gana la más reciente por `respondida_en`, no por orden de llegada.
+- **Centinelas síncronos** dentro de la petición del lote → `AlertaService`.
+  Todo lo demás del pipeline es asíncrono.
+- El **token vuelve a entrar mientras la aplicación sigue en curso**; muere al
+  completarse. La liga lleva el token en el **fragmento** (`/contestar#…`), que
+  no llega al servidor.
+- Frontend: un componente por familia de `tipo_reactivo`, modos declarados en
+  datos (`Aplicacion/modos.js`), layout propio sin el shell de administración,
+  **bandeja de salida** con reintento, pausa y reanudación sin volver a pedir el
+  token. Los tipos sin componente se dibujan con un aviso visible.
+- Páginas Inertia **por trozos** (`import.meta.glob` sin `eager`): la pantalla
+  pública pasó de 540 kB a 19 kB.
+- Captura de protocolo para instrumentos que la editorial no permite en línea,
+  en `/captura-protocolo` y en la API §5.
+
+**Sigue la Fase 7** (M8: pipeline de calificación) — `App\Jobs\CalificarAplicacion`
+existe como stub y ya se encola desde `finalizar()` y desde la captura de
+protocolo. O la **Fase 4** cuando haya contenido de instrumentos.
+
+**Pendiente que arrastran todas las fases:** el panel sigue siendo el
+placeholder de la Fase 0 y **no se comparte ninguna prop `menu`**, así que
+`LayoutAdmin` dibuja la barra lateral vacía. Todas las pantallas de las Fases
+1–6 sólo se alcanzan escribiendo la URL. Armar el panel por tarjetas declaradas
+con su permiso es trabajo propio, no de la Fase 6.
 
 **Dos bloqueos estructurales más adelante, ya identificados:**
 

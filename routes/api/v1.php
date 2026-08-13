@@ -49,14 +49,21 @@ Route::get('estado', EstadoController::class)->name('estado');
 | hijo no se registra en nada. El token ES la credencial, y el contexto de
 | organización lo fija él, no un encabezado que el cliente pueda elegir.
 |
-| El límite es más estricto que el general: por aquí entra tráfico sin
-| autenticar y el canje de token es un endpoint adivinable.
+| Los límites son DOS y distintos a propósito.
+|
+| El canje es un endpoint adivinable: quien prueba tokens al azar entra por
+| ahí, así que va estrangulado fuerte. Los demás exigen ya el uuid de una
+| aplicación existente, y estrangularlos igual castigaría a quien contesta
+| rápido —un tamizaje de treinta reactivos en modo infantil son treinta
+| interacciones en pocos minutos— hasta sacarlo de su propia evaluación a la
+| mitad. Eso no protege nada: sólo abandona instrumentos.
 |
 */
-Route::middleware('throttle:30,1')->group(function (): void {
-    Route::post('aplicaciones/iniciar', [AplicacionController::class, 'iniciar'])
-        ->name('aplicaciones.iniciar');
+Route::post('aplicaciones/iniciar', [AplicacionController::class, 'iniciar'])
+    ->middleware('throttle:30,1')
+    ->name('aplicaciones.iniciar');
 
+Route::middleware('throttle:180,1')->group(function (): void {
     Route::get('aplicaciones/{aplicacion}/bloques/{clave}/reactivos', [AplicacionController::class, 'reactivos'])
         ->name('aplicaciones.reactivos');
     Route::post('aplicaciones/{aplicacion}/respuestas', [AplicacionController::class, 'respuestas'])

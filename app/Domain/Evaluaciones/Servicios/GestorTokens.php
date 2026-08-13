@@ -19,8 +19,11 @@ use Illuminate\Support\Str;
  *    volcado, una consulta de soporte— no debe poder entrar a contestar en
  *    nombre de nadie. El token en claro sólo existe el instante en que se
  *    manda por correo.
- * 2. **De un solo uso.** Al canjearse se marca `token_usado_en`. Una liga
- *    reenviada por WhatsApp llega a más gente de la que se pensó.
+ * 2. **De un solo INTENTO.** Al canjearse se marca `token_usado_en` y ya no
+ *    puede abrir una aplicación nueva; una liga reenviada por WhatsApp llega a
+ *    más gente de la que se pensó. Lo que sí puede es volver a entrar a la
+ *    aplicación que ya está en curso —ver `tokenVigente()`—, porque cerrar la
+ *    pestaña no debería costar el instrumento entero.
  * 3. **Expira con la VENTANA de la asignación, no con un plazo propio.** Un
  *    token que sobreviviera al cierre de su asignación dejaría contestar
  *    fuera de plazo, y los resultados de una campaña con fecha de corte
@@ -79,7 +82,12 @@ class GestorTokens
      * Va en una transacción con bloqueo de fila. Sin él, dos peticiones
      * simultáneas con el mismo token —el doble clic de siempre, o dos personas
      * con la misma liga reenviada— pasarían las dos la comprobación de
-     * "todavía no se ha usado" antes de que ninguna lo marcara.
+     * "todavía no se ha usado" antes de que ninguna lo marcara, y cada una
+     * abriría su propia aplicación.
+     *
+     * Volver a canjear el MISMO token con la aplicación en curso es legítimo y
+     * devuelve el mismo destinatario: es la reanudación. `token_usado_en`
+     * conserva la fecha del primer canje, que es la que sirve en la bitácora.
      */
     public function canjear(string $tokenClaro, ?Carbon $al = null): ?AsignacionDestinatario
     {
@@ -97,7 +105,7 @@ class GestorTokens
             }
 
             $destinatario->update([
-                'token_usado_en' => $momento,
+                'token_usado_en' => $destinatario->token_usado_en ?? $momento,
                 'estado' => 'en_curso',
             ]);
 

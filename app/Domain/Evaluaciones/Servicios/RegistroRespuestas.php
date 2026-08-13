@@ -30,6 +30,11 @@ use Illuminate\Support\Facades\DB;
  *    centinelas. Es la diferencia entre enterarse de una ideación suicida
  *    ahora, con la persona todavía en la pantalla, o mañana cuando la cola
  *    termine de calificar (Doc 05 §3).
+ * 4. **Corrección, no acumulación.** Cambiar de respuesta ACTUALIZA la fila; no
+ *    agrega otra. La gente cambia de opción todo el tiempo, y el único de la
+ *    base es `(aplicacion, reactivo, opcion)`: sin esto, quien marca "Nunca" y
+ *    se corrige a "Siempre" deja las dos filas y el pipeline suma un reactivo
+ *    dos veces (Doc 03 §M7, que ya encarga esta comprobación al servicio).
  */
 class RegistroRespuestas
 {
@@ -55,8 +60,12 @@ class RegistroRespuestas
         $aceptadas = [];
         $duplicadas = [];
         $desconocidas = [];
+        $corregidas = 0;
 
-        DB::transaction(function () use ($aplicacion, $lote, &$aceptadas, &$duplicadas, &$desconocidas): void {
+        /** @var array<int, bool> $limpiados */
+        $limpiados = [];
+
+        DB::transaction(function () use ($aplicacion, $lote, &$aceptadas, &$duplicadas, &$desconocidas, &$corregidas, &$limpiados): void {
             foreach ($lote as $entrada) {
                 $uuidCliente = (string) ($entrada['uuid_cliente'] ?? '');
 
@@ -91,7 +100,39 @@ class RegistroRespuestas
                     continue;
                 }
 
-                $aceptadas[] = $this->guardar($aplicacion, $reactivo, $entrada, $uuidCliente);
+                if ($this->esDeVariasFilas($entrada)) {
+                    $reemplazo = $this->prepararReemplazo($aplicacion, $reactivo, $entrada, $limpiados);
+
+                    if ($reemplazo === false) {
+                        $duplicadas[] = $uuidCliente;
+
+                        continue;
+                    }
+
+                    if ($reemplazo === true) {
+                        $corregidas++;
+                    }
+
+                    $aceptadas[] = $this->crear($aplicacion, $reactivo, $entrada, $uuidCliente);
+
+                    continue;
+                }
+
+                $anterior = $this->vigenteDe($aplicacion, $reactivo);
+                $guardada = $this->guardar($aplicacion, $reactivo, $entrada, $uuidCliente, $anterior);
+
+                if ($guardada === null) {
+                    // Llegó una respuesta VIEJA después de una nueva. No pisa.
+                    $duplicadas[] = $uuidCliente;
+
+                    continue;
+                }
+
+                if ($anterior !== null) {
+                    $corregidas++;
+                }
+
+                $aceptadas[] = $guardada;
             }
         });
 
@@ -106,6 +147,7 @@ class RegistroRespuestas
 
         return [
             'aceptadas' => count($aceptadas),
+            'corregidas' => $corregidas,
             'duplicadas' => count($duplicadas),
             'rechazadas' => $desconocidas,
             'tardias' => count(array_filter(
@@ -127,6 +169,11 @@ class RegistroRespuestas
     }
 
     /**
+     * Guarda o CORRIGE.
+     *
+     * Devuelve null cuando la entrada no debe aplicarse porque ya hay una
+     * respuesta más reciente para ese reactivo.
+     *
      * @param  array<string, mixed>  $entrada
      */
     private function guardar(
@@ -134,14 +181,15 @@ class RegistroRespuestas
         Reactivo $reactivo,
         array $entrada,
         string $uuidCliente,
-    ): Respuesta {
+        ?Respuesta $anterior,
+    ): ?Respuesta {
         $opcion = $this->opcionDe($reactivo, $entrada['opcion_codigo'] ?? null);
 
         $respondidaEn = isset($entrada['respondida_en'])
             ? Carbon::parse((string) $entrada['respondida_en'])
             : Carbon::now();
 
-        return Respuesta::query()->create([
+        $atributos = [
             'aplicacion_id' => $aplicacion->id,
             'reactivo_id' => $reactivo->id,
             'opcion_id' => $opcion?->id,
@@ -155,7 +203,128 @@ class RegistroRespuestas
             'respondida_en' => $respondidaEn,
             'origen' => $entrada['origen'] ?? 'online',
             'tardia' => $this->esTardia($aplicacion, $reactivo, $respondidaEn),
-        ]);
+        ];
+
+        if ($anterior === null) {
+            return Respuesta::query()->create($atributos);
+        }
+
+        /*
+         * GANA LA MÁS RECIENTE, por `respondida_en` y no por orden de llegada.
+         * En modo offline los lotes se sincronizan desordenados: sin esto, un
+         * paquete viejo que llega tarde deshace una corrección posterior, y el
+         * expediente queda con la respuesta que la persona ya había cambiado.
+         */
+        if ($anterior->respondida_en->greaterThan($respondidaEn)) {
+            return null;
+        }
+
+        $anterior->update($atributos);
+
+        return $anterior;
+    }
+
+    /**
+     * La respuesta vigente de un reactivo de UNA SOLA fila.
+     */
+    private function vigenteDe(Aplicacion $aplicacion, Reactivo $reactivo): ?Respuesta
+    {
+        return Respuesta::query()
+            ->where('aplicacion_id', $aplicacion->id)
+            ->where('reactivo_id', $reactivo->id)
+            ->first();
+    }
+
+    /**
+     * ¿Este reactivo ocupa varias filas?
+     *
+     * Ranking e ipsativos: el orden completo o el par más/menos son UNA
+     * respuesta repartida en varias filas.
+     *
+     * @param  array<string, mixed>  $entrada
+     */
+    private function esDeVariasFilas(array $entrada): bool
+    {
+        return ($entrada['posicion_ranking'] ?? null) !== null
+            || ($entrada['rol_ipsativo'] ?? null) !== null;
+    }
+
+    /**
+     * Deja el terreno limpio para un ranking o un ipsativo.
+     *
+     * En estos, la respuesta es el CONJUNTO: corregir fila por fila no
+     * funciona. Si alguien cambia cuál opción es la que "más" lo describe,
+     * actualizar sólo la nueva dejaría la anterior marcada y el cuadro tendría
+     * dos «más»; y reordenar un ranking chocaría contra el único de la base a
+     * medio camino, cuando dos filas quieren la misma opción. Se borra el
+     * conjunto anterior una vez por lote y se vuelve a escribir completo.
+     *
+     * Devuelve `false` si el lote es más viejo que lo ya guardado —no se
+     * aplica—, `true` si hubo algo que reemplazar y `null` si no había nada.
+     *
+     * @param  array<string, mixed>  $entrada
+     * @param  array<int, bool>  $limpiados
+     */
+    private function prepararReemplazo(
+        Aplicacion $aplicacion,
+        Reactivo $reactivo,
+        array $entrada,
+        array &$limpiados,
+    ): ?bool {
+        if (isset($limpiados[$reactivo->id])) {
+            return null;
+        }
+
+        $previas = Respuesta::query()
+            ->where('aplicacion_id', $aplicacion->id)
+            ->where('reactivo_id', $reactivo->id)
+            ->get();
+
+        if ($previas->isEmpty()) {
+            $limpiados[$reactivo->id] = true;
+
+            return null;
+        }
+
+        $respondidaEn = isset($entrada['respondida_en'])
+            ? Carbon::parse((string) $entrada['respondida_en'])
+            : Carbon::now();
+
+        // Gana la más reciente, igual que en los de una sola fila.
+        $masNueva = $previas->max(
+            static fn (Respuesta $respuesta): Carbon => $respuesta->respondida_en
+        );
+
+        if ($masNueva instanceof Carbon && $masNueva->greaterThan($respondidaEn)) {
+            return false;
+        }
+
+        Respuesta::query()
+            ->where('aplicacion_id', $aplicacion->id)
+            ->where('reactivo_id', $reactivo->id)
+            ->delete();
+
+        $limpiados[$reactivo->id] = true;
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $entrada
+     */
+    private function crear(
+        Aplicacion $aplicacion,
+        Reactivo $reactivo,
+        array $entrada,
+        string $uuidCliente,
+    ): Respuesta {
+        $respuesta = $this->guardar($aplicacion, $reactivo, $entrada, $uuidCliente, null);
+
+        // `guardar()` sólo devuelve null cuando hay una anterior que desempatar,
+        // y aquí se le pasa null a propósito.
+        assert($respuesta instanceof Respuesta);
+
+        return $respuesta;
     }
 
     /**

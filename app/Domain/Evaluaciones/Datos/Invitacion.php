@@ -37,9 +37,20 @@ final readonly class Invitacion
         return new self($destinatario, $quien, $tokenClaro, $esRecordatorio);
     }
 
+    /**
+     * El token va en el FRAGMENTO, no en la ruta.
+     *
+     * Lo que está después de `#` no se manda al servidor: no aparece en el log
+     * de accesos del servidor web, ni en el `Referer` hacia terceros, ni en el
+     * proxy de la empresa. Con el token en la ruta, la credencial de quien
+     * contesta un tamizaje clínico queda escrita en texto plano en cada capa
+     * por la que pasa la petición (Doc 06 §3).
+     *
+     * La página lo lee del navegador y lo canjea contra `/api/v1` por POST.
+     */
     public function liga(): string
     {
-        return url('/aplicacion/'.$this->tokenClaro);
+        return url('/contestar').'#'.$this->tokenClaro;
     }
 
     public function asunto(): string

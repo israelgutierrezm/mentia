@@ -189,7 +189,14 @@ class AsignacionesTest extends TestCase
 
     // ── Caso 3: doble uso de token ────────────────────────────────────────
 
-    public function test_un_token_no_se_puede_canjear_dos_veces(): void
+    /**
+     * Reanudación: la liga del correo vuelve a entrar a lo que quedó a medias.
+     *
+     * La regla estricta —token muerto al primer canje— protege del reenvío por
+     * WhatsApp y castiga el caso mucho más común, que es cerrar la pestaña. Con
+     * ella, cada cierre accidental abandona un instrumento a la mitad.
+     */
+    public function test_el_token_vuelve_a_entrar_mientras_la_aplicacion_sigue_en_curso(): void
     {
         $tenant = EscenarioTenant::nuevo()->activar();
         $escenario = new EscenarioAsignacion($tenant);
@@ -206,13 +213,39 @@ class AsignacionesTest extends TestCase
         $this->assertNotNull($primero);
         $this->assertSame('en_curso', $primero->estado);
 
+        $segundo = $this->tokens()->canjear($token);
+
+        $this->assertNotNull($segundo, 'Cerrar la pestaña no puede costar el instrumento entero.');
+        $this->assertSame($primero->id, $segundo->id);
+
+        // La fecha del PRIMER canje se conserva: es la que sirve en la bitácora.
+        $this->assertTrue($primero->token_usado_en->equalTo($segundo->token_usado_en));
+    }
+
+    public function test_el_token_muere_cuando_el_destinatario_ya_contesto(): void
+    {
+        $tenant = EscenarioTenant::nuevo()->activar();
+        $escenario = new EscenarioAsignacion($tenant);
+
+        $persona = $tenant->persona();
+        $asignacion = $escenario->individual($tenant->persona(), [$persona]);
+
+        $destinatario = $asignacion->destinatarios()->first();
+        $destinatario->setRelation('asignacion', $asignacion);
+        $token = $this->tokens()->generar($destinatario);
+
+        $this->assertNotNull($this->tokens()->canjear($token));
+
+        $destinatario->refresh()->update(['estado' => 'completada']);
+
         /*
-         * Una liga reenviada por WhatsApp llega a más gente de la que se
-         * pensó. El segundo canje no abre nada.
+         * Aquí sí: una liga reenviada por WhatsApp llega a más gente de la que
+         * se pensó, y lo que el token no puede hacer NUNCA es abrir un intento
+         * nuevo sobre una evaluación ya contestada.
          */
         $this->assertNull(
             $this->tokens()->canjear($token),
-            'El token es de un solo uso.'
+            'Contestada la evaluación, el token está muerto.'
         );
     }
 
