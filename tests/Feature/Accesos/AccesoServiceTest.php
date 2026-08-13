@@ -57,7 +57,7 @@ class AccesoServiceTest extends TestCase
         $escenario = EscenarioTenant::nuevo()->activar();
 
         $actor = $escenario->persona();
-        $sujeto = $escenario->persona();
+        $sujeto = $escenario->personaConsentida();
 
         $rol = $escenario->rol('Orientador', ['resultados.ver_detalle'], nivelMaximo: 2);
         $escenario->asignarRol($actor, $rol);
@@ -81,7 +81,7 @@ class AccesoServiceTest extends TestCase
         $grupo = $escenario->agrupacion($academia, '3° A');
 
         $actor = $escenario->persona();
-        $sujeto = $escenario->persona();
+        $sujeto = $escenario->personaConsentida();
         $escenario->inscribir($sujeto, $grupo);
 
         $rol = $escenario->rol('Coordinador', ['resultados.ver_detalle'], nivelMaximo: 2);
@@ -230,7 +230,7 @@ class AccesoServiceTest extends TestCase
         $escenario = EscenarioTenant::nuevo()->activar();
 
         $actor = $escenario->persona();
-        $sujeto = $escenario->persona();
+        $sujeto = $escenario->personaConsentida();
 
         $rol = $escenario->rol('Psicólogo', ['resultados.ver_detalle'], nivelMaximo: 4);
         $escenario->asignarRol($actor, $rol);
@@ -351,30 +351,65 @@ class AccesoServiceTest extends TestCase
         $this->assertNotNull($registro->motivo);
     }
 
-    public function test_el_acceso_concedido_sin_verificar_consentimiento_se_distingue_en_bitacora(): void
+    public function test_sin_consentimiento_no_hay_acceso_aunque_todo_lo_demas_este_bien(): void
     {
         $escenario = EscenarioTenant::nuevo()->activar();
 
         $actor = $escenario->persona();
+
+        // Vinculada al tenant, pero NO ha consentido.
         $sujeto = $escenario->persona();
 
         $rol = $escenario->rol('Orientador', ['expediente.ver'], nivelMaximo: 2);
         $escenario->asignarRol($actor, $rol);
 
-        $this->servicio()->autorizar($actor, 'expediente.ver', $sujeto);
+        $decision = $this->servicio()->autorizar($actor, 'expediente.ver', $sujeto);
+
+        /*
+         * Esta prueba reemplaza a la de la Fase 1, que comprobaba que el stub
+         * dejaba pasar marcándolo en bitácora. Desde la Fase 2 la compuerta
+         * cierra de verdad: permiso, alcance y sensibilidad en orden NO bastan
+         * si la persona no autorizó el tratamiento (LFPDPPP, Doc 06 §3).
+         */
+        $this->assertTrue($decision->denegado());
+        $this->assertSame(Dimension::Consentimiento, $decision->dimension);
 
         $registro = Bitacora::query()->latest('id')->first();
 
         $this->assertNotNull($registro);
-        $this->assertSame('permitido', $registro->resultado);
+        $this->assertSame('denegado', $registro->resultado);
+    }
+
+    public function test_con_consentimiento_vigente_el_acceso_se_concede(): void
+    {
+        $escenario = EscenarioTenant::nuevo()->activar();
+
+        $actor = $escenario->persona();
+        $sujeto = $escenario->personaConsentida();
+
+        $rol = $escenario->rol('Orientador', ['expediente.ver'], nivelMaximo: 2);
+        $escenario->asignarRol($actor, $rol);
+
+        $decision = $this->servicio()->autorizar($actor, 'expediente.ver', $sujeto);
+
+        $this->assertTrue($decision->permitido, $decision->motivo);
+    }
+
+    public function test_el_titular_no_necesita_consentir_ante_si_mismo(): void
+    {
+        $escenario = EscenarioTenant::nuevo()->activar();
+
+        $persona = $escenario->persona();
 
         /*
-         * Mientras la verificación de consentimiento sea provisional (Fase 1),
-         * los accesos concedidos así llevan motivo propio. Es lo que permite
-         * responder, al conectar la real, exactamente qué se consultó sin
-         * comprobarla — que es lo que preguntaría una auditoría de la LFPDPPP.
+         * El consentimiento protege a la persona de TERCEROS. Exigírselo a
+         * ella misma sería pedirle que se autorice ante sí misma, y dejaría a
+         * todo el mundo fuera de su propio expediente antes de poder firmar
+         * nada.
          */
-        $this->assertStringContainsString('consentimiento pendiente', (string) $registro->motivo);
+        $decision = $this->servicio()->autorizar($persona, 'expediente.ver', $persona);
+
+        $this->assertTrue($decision->permitido, $decision->motivo);
     }
 
     public function test_la_bitacora_no_se_puede_editar_ni_borrar(): void

@@ -7,6 +7,10 @@ namespace Tests\Apoyo;
 use App\Domain\Accesos\Modelos\PersonaRolAlcance;
 use App\Domain\Accesos\Modelos\Rol;
 use App\Domain\Accesos\Modelos\RolSensibilidadMax;
+use App\Domain\Consentimientos\Modelos\Consentimiento;
+use App\Domain\Consentimientos\Modelos\TextoConsentimiento;
+use App\Domain\Consentimientos\Modelos\TipoConsentimiento;
+use App\Domain\Consentimientos\Servicios\GestorConsentimientos;
 use App\Domain\Organizaciones\Modelos\Agrupacion;
 use App\Domain\Organizaciones\Modelos\AgrupacionMiembro;
 use App\Domain\Organizaciones\Modelos\Organizacion;
@@ -180,6 +184,40 @@ class EscenarioTenant
             'fecha_alta' => Carbon::now()->subMonths(6)->toDateString(),
             'fecha_baja' => $fechaBaja,
         ]);
+    }
+
+    /**
+     * Otorga el consentimiento de tratamiento de datos sensibles.
+     *
+     * Desde la Fase 2 la cuarta dimensión de AccesoService verifica de verdad,
+     * así que un escenario sin consentimiento NO autoriza nada — que es
+     * exactamente lo correcto y por eso este helper es explícito: si una
+     * prueba quiere probar el alcance, tiene que decir que el consentimiento
+     * está dado.
+     */
+    public function consentir(Persona $titular, ?Persona $otorgante = null): Consentimiento
+    {
+        $texto = TextoConsentimiento::query()
+            ->whereHas('tipo', fn ($consulta) => $consulta->where('clave', TipoConsentimiento::TRATAMIENTO))
+            ->whereNull('organizacion_id')
+            ->firstOrFail();
+
+        return app(GestorConsentimientos::class)->otorgar(
+            titular: $titular,
+            texto: $texto,
+            otorgante: $otorgante ?? $titular,
+        );
+    }
+
+    /**
+     * Una persona vinculada Y con consentimiento vigente: el caso normal.
+     */
+    public function personaConsentida(): Persona
+    {
+        $persona = $this->persona();
+        $this->consentir($persona);
+
+        return $persona;
     }
 
     public function tutoria(

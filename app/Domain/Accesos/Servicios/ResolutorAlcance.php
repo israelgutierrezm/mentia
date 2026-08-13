@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Accesos\Servicios;
 
 use App\Domain\Accesos\Modelos\PersonaRolAlcance;
+use App\Domain\Consentimientos\Modelos\ComparticionExpediente;
 use App\Domain\Organizaciones\Modelos\AgrupacionMiembro;
 use App\Domain\Organizaciones\Modelos\Unidad;
 use App\Domain\Personas\Modelos\Persona;
@@ -119,10 +120,35 @@ class ResolutorAlcance
             return false;
         }
 
-        return $sujeto->vinculaciones()
+        $vinculada = $sujeto->vinculaciones()
             ->withoutGlobalScopes()
             ->where('organizacion_id', $organizacionId)
             ->where('estado', 'activa')
+            ->exists();
+
+        if ($vinculada) {
+            return true;
+        }
+
+        /*
+         * O con una COMPARTICIÓN vigente hacia esta organización.
+         *
+         * Es el expediente de vida cross-tenant: la persona que fue evaluada
+         * en la escuela llega años después a una empresa y decide abrirle
+         * parte de su historial. Sin esto, la compartición no serviría de
+         * nada —la persona nunca estaría en el alcance de nadie de la
+         * organización destino— y la compuerta de consentimiento no llegaría
+         * ni a preguntarse.
+         *
+         * Sólo aplica al alcance de ORGANIZACIÓN COMPLETA. Un alcance por
+         * unidad o por agrupación sigue exigiendo membresía, y una persona
+         * compartida no está en ningún grupo del destino: quien la ve es quien
+         * ve a toda la organización, no un docente con su grupo.
+         */
+        return ComparticionExpediente::query()
+            ->where('persona_id', $sujeto->id)
+            ->where('organizacion_destino_id', $organizacionId)
+            ->vigentes()
             ->exists();
     }
 

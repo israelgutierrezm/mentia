@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\AgrupacionController;
 use App\Http\Controllers\Api\V1\AlcanceController;
 use App\Http\Controllers\Api\V1\EstadoController;
+use App\Http\Controllers\Api\V1\ExpedienteController;
 use App\Http\Controllers\Api\V1\PersonaController;
 use App\Http\Controllers\Api\V1\RolController;
 use App\Http\Controllers\Api\V1\TutoriaController;
@@ -60,6 +61,15 @@ Route::middleware(['auth:sanctum', 'organizacion'])->group(function (): void {
 
     // Sin `can:`: decide AccesoService con las cuatro dimensiones.
     Route::get('personas/{persona}', [PersonaController::class, 'show'])->name('personas.show');
+
+    // ── Expediente (Doc 07 §2) ────────────────────────────────────────────
+    // Sin `can:`: AccesoService decide sección por sección.
+    Route::get('expedientes/{persona}', [ExpedienteController::class, 'show'])
+        ->name('expedientes.show');
+    Route::put('expedientes/{persona}/valores', [ExpedienteController::class, 'guardarValores'])
+        ->name('expedientes.valores');
+    Route::get('expedientes/{persona}/pendientes', [ExpedienteController::class, 'pendientes'])
+        ->middleware('can:expediente.validar')->name('expedientes.pendientes');
 
     // ── Tutorías (Doc 07 §2) ──────────────────────────────────────────────
     Route::middleware('can:tutorias.validar')->group(function (): void {

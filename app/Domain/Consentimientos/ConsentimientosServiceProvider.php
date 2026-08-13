@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Consentimientos;
 
 use App\Domain\Consentimientos\Contratos\VerificaConsentimiento;
-use App\Domain\Consentimientos\Servicios\ConsentimientoPendiente;
+use App\Domain\Consentimientos\Servicios\VerificadorConsentimiento;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -33,10 +33,10 @@ class ConsentimientosServiceProvider extends ServiceProvider
      */
     public $singletons = [
         /*
-         * Fase 1: implementación provisional que devuelve "pendiente" (Doc 08).
-         * La Fase 2 cambia ESTA LÍNEA por la verificación real y AccesoService
-         * no se entera — es para lo que existe el contrato.
+         * Fase 2: la verificación REAL. Era ConsentimientoPendiente (stub que
+         * dejaba pasar) y cambió sólo esta línea: AccesoService no se enteró,
+         * que es para lo que existe el contrato.
          */
-        VerificaConsentimiento::class => ConsentimientoPendiente::class,
+        VerificaConsentimiento::class => VerificadorConsentimiento::class,
     ];
 }

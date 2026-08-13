@@ -30,6 +30,8 @@ class DatabaseSeeder extends Seeder
                 NivelesSensibilidadSeeder::class,
                 TiposOrganizacionSeeder::class,
                 PlantillasRolSeeder::class,
+                ExpedienteSeeder::class,
+                ConsentimientosSeeder::class,
             ]);
         });
     }

@@ -281,7 +281,7 @@ class GestionRolesTest extends TestCase
         $escenario = EscenarioTenant::nuevo()->activar();
 
         $actor = $escenario->persona();
-        $sujeto = $escenario->persona();
+        $sujeto = $escenario->personaConsentida();
 
         $rol = $escenario->rol('Psicólogo', ['resultados.ver_detalle'], 4);
         $escenario->asignarRol($actor, $rol);

@@ -10,6 +10,7 @@ use App\Domain\Accesos\Datos\Dimension;
 use App\Domain\Accesos\Modelos\Rol;
 use App\Domain\Consentimientos\Contratos\VerificaConsentimiento;
 use App\Domain\Consentimientos\Datos\EstadoConsentimiento;
+use App\Domain\Expedientes\Modelos\Expediente;
 use App\Domain\Personas\Modelos\Persona;
 use App\Soporte\Multitenencia\ContextoOrganizacion;
 use Illuminate\Database\Eloquent\Model;
@@ -111,6 +112,36 @@ class AccesoService
         }
 
         // ── 4. Consentimiento ─────────────────────────────────────────────
+
+        /*
+         * El titular y el tutor acreditado NO pasan por esta compuerta.
+         *
+         * El consentimiento protege a la persona de TERCEROS; exigírselo a
+         * ella misma sería pedirle que se autorice ante sí misma. Y el tutor es
+         * justamente QUIEN OTORGA el consentimiento en nombre del menor:
+         * pedirle el suyo para poder ver sería circular —no podría leer aquello
+         * sobre lo que tiene que decidir—.
+         *
+         * Con esta salida, la compuerta hace lo que la LFPDPPP quiere que haga
+         * y no lo contrario.
+         */
+        if ($this->esTitularOTutor($actor, $sujeto)) {
+            return DecisionAcceso::permitir();
+        }
+
+        /*
+         * Expediente bloqueado por re-consentimiento pendiente: TERCEROS no
+         * entran (Doc 06 §3). El titular ya salió arriba — el bloqueo existe
+         * para protegerlo a él, no para dejarlo fuera de su propio dato.
+         */
+        if ($this->expedienteBloqueado($sujeto)) {
+            return DecisionAcceso::negar(
+                Dimension::Consentimiento,
+                'El expediente está bloqueado hasta que la persona re-consienta '
+                .'tras cumplir la mayoría de edad.'
+            );
+        }
+
         $consentimiento = $this->consentimientos->estadoPara(
             $sujeto, $accion, $propositoId, $organizacionId
         );
@@ -152,6 +183,20 @@ class AccesoService
         }
 
         return $actor->hasPermissionTo($accion, 'web');
+    }
+
+    private function esTitularOTutor(Persona $actor, Persona $sujeto): bool
+    {
+        return $actor->id === $sujeto->id
+            || $this->alcances->esTutorVigenteDe($actor, $sujeto);
+    }
+
+    private function expedienteBloqueado(Persona $sujeto): bool
+    {
+        return Expediente::query()
+            ->where('persona_id', $sujeto->id)
+            ->where('estado', 'bloqueado')
+            ->exists();
     }
 
     /**

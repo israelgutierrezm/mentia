@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Web\AgrupacionController;
 use App\Http\Controllers\Web\AlcanceController;
+use App\Http\Controllers\Web\ConsentimientoController;
+use App\Http\Controllers\Web\ExpedienteController;
 use App\Http\Controllers\Web\MiembroAgrupacionController;
 use App\Http\Controllers\Web\PanelController;
 use App\Http\Controllers\Web\PersonaController;
+use App\Http\Controllers\Web\PortalExpedienteController;
 use App\Http\Controllers\Web\RolController;
 use App\Http\Controllers\Web\TutoriaController;
 use App\Http\Controllers\Web\UnidadController;
@@ -25,6 +28,23 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', PanelController::class)->name('panel');
+
+/*
+ * PORTAL DEL TITULAR. Sin organización activa a propósito: la persona entra a
+ * lo suyo, y su expediente no pertenece a ninguna organización. Exigir aquí un
+ * tenant dejaría fuera a quien no está vinculado a ninguno.
+ */
+Route::middleware('auth')->group(function (): void {
+    Route::get('mi-expediente', [PortalExpedienteController::class, 'index'])
+        ->name('portal.expediente');
+    Route::post('mi-expediente/valores', [PortalExpedienteController::class, 'store'])
+        ->name('portal.expediente.store');
+
+    Route::post('consentimientos', [ConsentimientoController::class, 'store'])
+        ->name('consentimientos.store');
+    Route::post('consentimientos/{consentimiento}/revocar', [ConsentimientoController::class, 'revocar'])
+        ->name('consentimientos.revocar');
+});
 
 /*
  * Todo lo que toca datos de tenant va detrás de `auth` + `organizacion`.
@@ -65,6 +85,13 @@ Route::middleware(['auth', 'organizacion'])->group(function (): void {
      * suya sin ningún permiso.
      */
     Route::get('personas/{persona}', [PersonaController::class, 'show'])->name('personas.show');
+
+    // ── Expediente ────────────────────────────────────────────────────────
+    // Sin `can:`: AccesoService decide SECCIÓN POR SECCIÓN.
+    Route::get('personas/{persona}/expediente', [ExpedienteController::class, 'show'])
+        ->name('expediente.show');
+    Route::post('personas/{persona}/expediente/valores', [ExpedienteController::class, 'store'])
+        ->middleware('can:expediente.editar')->name('expediente.store');
 
     // ── Tutorías ──────────────────────────────────────────────────────────
     Route::middleware('can:tutorias.validar')->group(function (): void {
