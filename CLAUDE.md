@@ -72,30 +72,45 @@ Todo el detalle está en `docs/convenciones.md`.
 
 ## Estado
 
-**Fase 1 completa** (M1–M3: organizaciones, personas y accesos).
+**Fases 0, 1 y 2 completas.** 94 pruebas verdes, Pint limpio, PHPStan nivel 6
+sin errores, `npm run build` OK.
 
-- **Modelo de datos M1–M3** conforme al Doc 03, con una desviación documentada
-  (la relación persona↔cuenta va sólo en `users.persona_id`).
-- **AccesoService** con las cuatro dimensiones en cortocircuito y bitácora en
-  toda decisión. El consentimiento es un contrato con implementación
-  provisional que retorna `pendiente`; **pendiente deja pasar** y queda marcado
-  distinto en bitácora. La Fase 2 sustituye el binding.
-- **Aislamiento de tenant**: `ContextoOrganizacion` (singleton) + global scope
-  que **falla cerrado** + middleware que comprueba vinculación antes de aceptar
-  `X-Organizacion`.
-- **Seeds**: 25 permisos en `CatalogoPermisos` (código, no base), 4 niveles de
-  sensibilidad, 4 tipos de organización, 24 plantillas de rol. Se **clonan** al
-  crear el tenant.
-- **CRUDs web + API v1 espejo** para unidades, agrupaciones, miembros, personas
-  (alta con verificación CURP+fecha), **administración de roles** (permisos y
-  tope de sensibilidad), alcances con vigencia y **tutorías con su flujo de
-  validación**.
-- **71 pruebas verdes**: 16 de AccesoService, 15 de aislamiento cross-tenant,
-  15 de gestión de roles y 11 de tutorías. Todas comprobadas mutando el código
-  que vigilan.
+**Fase 2 (M4) — expediente y consentimientos:**
 
-**Sigue la Fase 2** (M4): expediente config-driven y consentimientos. Prompt en
-`docs/08-plan-de-fases-y-prompts-claude-code.md`.
+- Expediente **config-driven** con secciones que declaran su sensibilidad;
+  agregar un campo es una fila, no una migración.
+- **Versionado**: corregir no pisa, versiona. El vigente es la mayor versión
+  **validada** — una corrección sin validar no desplaza al dato que la
+  organización ya dio por bueno.
+- `VistaExpediente` filtra **sección por sección** pasando cada una por
+  AccesoService: lo que el rol no alcanza no sale del servidor.
+- Notas profesionales cifradas (probado contra la columna cruda) y nunca
+  visibles para el titular.
+- Textos de consentimiento **versionados con hash SHA-256 e inmutables**; el
+  hash detecta un UPDATE hecho por fuera de la aplicación y entonces no se
+  firma.
+- **El stub de consentimiento ya no existe**: `VerificadorConsentimiento` es la
+  implementación real. Cambió una línea del ServiceProvider.
+- Jobs de mayoría de edad y de vencimientos, con `Schedule` en
+  `routes/console.php`.
+- Portal `/mi-expediente` del titular y endpoints `/api/v1` del Doc 07 §2.
+
+**Sigue la Fase 3** (M5): catálogo de instrumentos. Prompt en
+`docs/08-plan-de-fases-y-prompts-claude-code.md`. Es el modelo de datos más
+grande de la spec (~20 tablas) y depende del Doc 03 §M5, el Doc 04 y el
+Doc 05 §2.
+
+**Dos bloqueos estructurales más adelante, ya identificados:**
+
+- **La Fase 4 no se puede hacer sin contenido.** El Doc 08 dice que los textos
+  de reactivos e interpretaciones "se entregan como archivos de datos
+  versionados" en `/database/seeds/instrumentos/`, y ese directorio no existe.
+  Los reactivos del PHQ-9, del M-CHAT-R/F y de las Guías de Referencia de la
+  NOM-035 **no se inventan**: un instrumento sembrado con ítems aproximados
+  produce puntajes que parecen válidos y no lo son. Lo que sí se puede
+  construir sin ellos es la maquinaria: el importador de Excel del Doc 04, los
+  seeders y el arnés de casos dorados.
+- **La Fase 10 es un proyecto Flutter aparte**, en Dart. No vive en este repo.
 
 ### Fase 0 (fundación). Lo que hay:
 

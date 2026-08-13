@@ -262,3 +262,77 @@ el middleware a propósito.
 Reescrita: ahora el actor tiene rol y permiso en B pero **sin vínculo activo**
 —el caso real de quien fue dado de baja y a quien nadie le limpió los roles—, y
 la mutación la tumba. Es el recordatorio de por qué la regla de mutar existe.
+
+---
+
+## Fase 2 — Expediente y consentimientos
+
+### El catálogo de opciones de los campos no estaba definido
+
+**Ambigüedad del Doc 03 §M4.** El diccionario referencia
+`expediente_campos.catalogo_opciones_id` y `expediente_valores.valor_opcion_id`,
+pero nunca dice dónde viven las opciones.
+
+Resuelto con dos tablas: `catalogos_opciones` (el catálogo: escolaridad, tipo de
+sangre) y `opciones_catalogo` (sus filas). Se parten en dos porque el mismo
+catálogo lo usan varios campos, y duplicar sus opciones por campo es como
+terminan divergiendo. Una opción se **apaga**, no se borra: sigue estando en los
+valores históricos que la eligieron.
+
+### El titular y el tutor no pasan por la compuerta de consentimiento
+
+Salió al conectar la verificación real: diez pruebas de la Fase 1 se pusieron en
+rojo y una de ellas señalaba un error de diseño, no de la prueba.
+
+El consentimiento protege a la persona de **terceros**. Exigírselo a ella misma
+es pedirle que se autorice ante sí misma, y al tutor es circular: es **quien
+otorga** el consentimiento en nombre del menor, así que no podría leer aquello
+sobre lo que tiene que decidir. Sin esta salida, el primer efecto de la Fase 2
+habría sido dejar a todo el mundo fuera de su propio expediente.
+
+### Una compartición vigente mete a la persona en el alcance del tenant destino
+
+Segundo hallazgo del mismo tipo. La compartición cross-tenant no servía de nada:
+la persona no está vinculada al destino, así que fallaba la **dimensión 2**
+(alcance) y la compuerta de consentimiento ni llegaba a preguntarse.
+
+Ahora `enLaOrganizacion()` acepta vínculo activo **o** compartición vigente.
+Sólo aplica al alcance de organización completa: un alcance por unidad o
+agrupación sigue exigiendo membresía, y una persona compartida no está en ningún
+grupo del destino.
+
+### El estado `Pendiente` del consentimiento se conserva en el enum
+
+Ya nadie lo devuelve —`ConsentimientoPendiente` fue sustituido— pero la bitácora
+de la Fase 1 tiene registros que lo citan, y borrar el caso volvería ilegibles
+esas filas.
+
+### Los jobs nocturnos NO son lo que protege el acceso
+
+`Consentimiento::estaVigente()` comprueba las fechas en vivo, así que un
+consentimiento vencido a medianoche deja de amparar en la siguiente petición
+aunque el job no haya corrido. Los jobs existen para que el **estado** que ve la
+persona coincida con la realidad y para poder consultar "qué venció" sin
+recalcularlo.
+
+Confiar sólo en el job sería el error: una corrida fallida abriría accesos.
+
+### La transición de mayoría de edad CREA el expediente si no existe
+
+El expediente nace la primera vez que alguien captura algo, así que una persona
+tamizada pero sin captura no tiene fila. Un `update` no habría afectado a nadie
+y el bloqueo habría sido un no-op silencioso — justo en el caso que la ley
+obliga a bloquear. Lo cazó una prueba.
+
+### El desbloqueo es consecuencia de consentir, no un botón
+
+Si fuera un paso manual, habría expedientes bloqueados para siempre porque a
+nadie se le ocurrió apretarlo después de que la persona ya re-consintió.
+
+### PHPStan retiene el tipo entre llamadas idénticas dentro de un método
+
+`assertNull($servicio->valorVigenteDe(...))` seguido de otra llamada idéntica
+hace que PHPStan infiera `null` en la segunda. La solución no fue forzar el
+tipo: se partió la prueba en tres —una conducta cada una— y aparecieron dos
+casos que la original no cubría (que el vigente sea la mayor versión
+**validada**, y que una corrección sin validar no desplace al dato bueno).
