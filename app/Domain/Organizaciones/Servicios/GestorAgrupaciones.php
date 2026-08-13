@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Organizaciones\Servicios;
 
+use App\Domain\Evaluaciones\Eventos\PersonaInscritaEnAgrupacion;
 use App\Domain\Organizaciones\Modelos\Agrupacion;
 use App\Domain\Organizaciones\Modelos\AgrupacionMiembro;
 use App\Domain\Organizaciones\Modelos\TipoAgrupacion;
@@ -75,15 +76,26 @@ class GestorAgrupaciones
                 'rol_en_agrupacion' => $rolEnAgrupacion,
             ]);
 
+            PersonaInscritaEnAgrupacion::dispatch($existente);
+
             return $existente;
         }
 
-        return AgrupacionMiembro::query()->create([
+        $miembro = AgrupacionMiembro::query()->create([
             'agrupacion_id' => $agrupacion->id,
             'persona_id' => $persona->id,
             'rol_en_agrupacion' => $rolEnAgrupacion,
             'fecha_alta' => Carbon::now()->toDateString(),
         ]);
+
+        /*
+         * Se anuncia el alta. Evaluaciones lo escucha para meter a la persona
+         * en las asignaciones dinámicas abiertas del grupo; este dominio no
+         * tiene por qué saber que eso existe.
+         */
+        PersonaInscritaEnAgrupacion::dispatch($miembro);
+
+        return $miembro;
     }
 
     /**

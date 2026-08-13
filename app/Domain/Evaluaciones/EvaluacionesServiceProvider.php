@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Domain\Evaluaciones;
 
+use App\Domain\Evaluaciones\Contratos\CanalNotificacion;
+use App\Domain\Evaluaciones\Eventos\PersonaInscritaEnAgrupacion;
+use App\Domain\Evaluaciones\Servicios\CanalCorreo;
+use App\Domain\Evaluaciones\Servicios\ExpansorAsignacionesDinamicas;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -31,5 +36,24 @@ class EvaluacionesServiceProvider extends ServiceProvider
      *
      * @var array<class-string, class-string>
      */
-    public $singletons = [];
+    public $singletons = [
+        /*
+         * V1: sólo correo. WhatsApp y push entran cambiando esta línea —el
+         * Doc 01 §4 describe padres respondiendo el M-CHAT por WhatsApp—, y
+         * los servicios de asignación no se enteran.
+         */
+        CanalNotificacion::class => CanalCorreo::class,
+    ];
+
+    public function boot(): void
+    {
+        /*
+         * Alta en agrupación → expansión de asignaciones dinámicas.
+         *
+         * Aquí y no en un EventServiceProvider global: la suscripción
+         * pertenece al dominio que reacciona, así que se lee junto al código
+         * que la atiende.
+         */
+        Event::listen(PersonaInscritaEnAgrupacion::class, ExpansorAsignacionesDinamicas::class);
+    }
 }
