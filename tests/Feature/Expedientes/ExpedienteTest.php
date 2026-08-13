@@ -79,10 +79,10 @@ class ExpedienteTest extends TestCase
 
         $this->captura()->validar($pendiente, $profesional);
 
-        $this->assertSame(
-            '5500000000',
-            $this->captura()->valoresVigentes($expediente)->get($campo->id)?->contenido()
-        );
+        $vigente = $this->captura()->valoresVigentes($expediente)->get($campo->id);
+
+        $this->assertNotNull($vigente, 'Validado, ya debe ser el vigente.');
+        $this->assertSame('5500000000', $vigente->contenido());
     }
 
     public function test_lo_que_captura_un_profesional_nace_validado(): void
