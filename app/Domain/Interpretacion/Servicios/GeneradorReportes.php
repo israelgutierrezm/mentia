@@ -6,6 +6,7 @@ namespace App\Domain\Interpretacion\Servicios;
 
 use App\Domain\Accesos\Servicios\RegistroBitacora;
 use App\Domain\Evaluaciones\Modelos\Aplicacion;
+use App\Domain\Evaluaciones\Modelos\Asignacion;
 use App\Domain\Interpretacion\Excepciones\ReporteNoGenerable;
 use App\Domain\Interpretacion\Modelos\PlantillaReporte;
 use App\Domain\Interpretacion\Modelos\ReporteGenerado;
@@ -111,6 +112,46 @@ class GeneradorReportes
             plantilla: $plantilla,
             generadoPor: $actor,
             personaId: $titular->id,
+        );
+    }
+
+    /**
+     * Reporte grupal de una asignación: distribuciones y semáforos.
+     *
+     * NUNCA lista personas, ni siquiera cuando la asignación es nominal. Un
+     * reporte grupal existe para ver el bosque; quien necesite el árbol abre el
+     * resultado individual, que pasa por AccesoService uno por uno.
+     *
+     * @throws ReporteNoGenerable
+     */
+    public function grupal(Persona $actor, Asignacion $asignacion, string $tipo = 'grupal'): ReporteGenerado
+    {
+        $agregado = app(AgregadoGrupal::class)->para($asignacion);
+
+        $plantilla = PlantillaReporte::resolver(
+            $tipo,
+            'profesional',
+            $asignacion->organizacion_id,
+            $asignacion->version_instrumento_id,
+        );
+
+        if ($plantilla === null) {
+            throw ReporteNoGenerable::porFaltarPlantilla($tipo, 'profesional');
+        }
+
+        $html = $this->renderizador->render($plantilla->estructura_html, [
+            ...$agregado,
+            'generado_en' => Carbon::now()->format('d/m/Y'),
+        ]);
+
+        return $this->guardar(
+            organizacionId: $asignacion->organizacion_id,
+            tipo: $tipo,
+            audiencia: 'profesional',
+            html: $html,
+            plantilla: $plantilla,
+            generadoPor: $actor,
+            asignacionId: $asignacion->id,
         );
     }
 

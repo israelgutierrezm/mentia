@@ -30,6 +30,8 @@ class PlantillasReporteSeeder extends Seeder
 
         $this->crear('longitudinal', 'profesional', $this->longitudinal());
         $this->crear('integrador', 'profesional', $this->integrador());
+        $this->crear('grupal', 'profesional', $this->grupal());
+        $this->crear('nom035', 'profesional', $this->nom035());
     }
 
     private function individual(string $audiencia, string $html): void
@@ -150,6 +152,81 @@ class PlantillasReporteSeeder extends Seeder
             <p class="pie">
                 Sólo aparecen las mediciones con baremo aplicable. Las series de
                 distinta norma no son comparables entre sí.
+            </p>
+            HTML;
+    }
+
+    /**
+     * El grupal NO lista personas, ni siquiera cuando la asignación es nominal.
+     * Existe para ver el bosque; quien necesite el árbol abre el resultado
+     * individual, que pasa por AccesoService uno por uno.
+     */
+    private function grupal(): string
+    {
+        return $this->estilos().<<<'HTML'
+            <h1>Reporte grupal</h1>
+            <p class="meta">Folio {{ folio }} · {{ contestadas }} evaluaciones contestadas · {{ generado_en }}</p>
+
+            {{#escalas}}
+            <h2>{{ nombre }}</h2>
+            <table>
+                <tr><th>n</th><th>Media</th><th>Mediana</th><th>Mínimo</th><th>Máximo</th></tr>
+                <tr>
+                    <td>{{ n }}</td>
+                    <td>{{ media }}</td>
+                    <td>{{ mediana }}</td>
+                    <td>{{ minimo }}</td>
+                    <td>{{ maximo }}</td>
+                </tr>
+            </table>
+            {{/escalas}}
+
+            <p class="pie">
+                Este reporte no identifica a ninguna persona. Los resultados
+                individuales se consultan uno por uno, con su propio registro de
+                acceso.
+            </p>
+            HTML;
+    }
+
+    /**
+     * NOM-035 por centro de trabajo.
+     *
+     * Es el mismo agregado con otra portada, y eso es a propósito: los cortes y
+     * los semáforos oficiales los aplica el pipeline con `nom035_cortes`, no la
+     * plantilla. Una plantilla que calculara sus propios niveles produciría un
+     * documento con formato oficial y números que no lo son.
+     */
+    private function nom035(): string
+    {
+        return $this->estilos().<<<'HTML'
+            <h1>NOM-035-STPS-2018</h1>
+            <p class="meta">
+                Resultados por centro de trabajo · Folio {{ folio }} ·
+                {{ contestadas }} cuestionarios · {{ generado_en }}
+            </p>
+
+            <div class="aviso">
+                Documento de evidencia. Consérvese conforme al plazo que fija la
+                norma.
+            </div>
+
+            {{#escalas}}
+            <h2>{{ nombre }}</h2>
+            <table>
+                <tr><th>Cuestionarios</th><th>Media</th><th>Mínimo</th><th>Máximo</th></tr>
+                <tr>
+                    <td>{{ n }}</td>
+                    <td>{{ media }}</td>
+                    <td>{{ minimo }}</td>
+                    <td>{{ maximo }}</td>
+                </tr>
+            </table>
+            {{/escalas}}
+
+            <p class="pie">
+                Los niveles de riesgo se calculan con los cortes publicados en el
+                DOF. Este agregado no permite identificar a ninguna persona.
             </p>
             HTML;
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\Evaluaciones\Modelos\Aplicacion;
+use App\Domain\Evaluaciones\Modelos\Asignacion;
 use App\Domain\Interpretacion\Excepciones\BorradorNoRedactable;
 use App\Domain\Interpretacion\Excepciones\ReporteNoGenerable;
 use App\Domain\Interpretacion\Excepciones\ResultadoNoDisponible;
@@ -95,6 +96,30 @@ class ReporteController extends ApiV1Controller
             ...$this->resumen($reporte),
             'aviso' => 'El borrador requiere validación profesional antes de liberarse.',
         ], 202);
+    }
+
+    /**
+     * Reporte grupal o NOM-035 de una asignación.
+     */
+    public function grupal(Request $peticion, Asignacion $asignacion): JsonResponse
+    {
+        $validado = $peticion->validate([
+            'tipo' => ['nullable', 'in:grupal,nom035'],
+        ]);
+
+        abort_if($asignacion->organizacion_id !== $this->contexto->id(), 404);
+
+        try {
+            $reporte = $this->generador->grupal(
+                $this->actor($peticion),
+                $asignacion,
+                $validado['tipo'] ?? 'grupal',
+            );
+        } catch (ReporteNoGenerable $error) {
+            throw ValidationException::withMessages(['grupal' => $error->getMessage()]);
+        }
+
+        return response()->json($this->resumen($reporte), 201);
     }
 
     public function show(Request $peticion, ReporteGenerado $reporte): JsonResponse

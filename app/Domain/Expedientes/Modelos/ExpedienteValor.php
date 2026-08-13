@@ -57,11 +57,28 @@ class ExpedienteValor extends Modelo implements TieneSensibilidad
     ];
 
     /**
+     * `valor_texto` va CIFRADO (Doc 06 §4, "campos sensibles de expediente").
+     *
+     * Se cifra TODO el campo de texto, no sólo el de secciones sensibles. Es un
+     * superconjunto de lo que el documento pide, y a propósito: cifrar según la
+     * sensibilidad de la sección exigiría consultar el catálogo en cada lectura
+     * de atributo —una consulta por celda de una pantalla de expediente— y la
+     * primera vez que alguien moviera un campo de sección dejaría datos viejos
+     * ilegibles o nuevos en claro sin que nada protestara.
+     *
+     * El precio es que `valor_texto` deja de ser buscable por SQL. Nadie lo
+     * busca —los valores se leen por campo, no por contenido— y una búsqueda de
+     * texto libre sobre domicilios y antecedentes clínicos sería de todas
+     * formas un problema de privacidad, no una funcionalidad.
+     *
      * @return array<string, string>
      */
     protected function casts(): array
     {
-        return ['valor_fecha' => 'date'];
+        return [
+            'valor_fecha' => 'date',
+            'valor_texto' => 'encrypted',
+        ];
     }
 
     /**

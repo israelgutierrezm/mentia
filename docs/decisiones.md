@@ -1097,3 +1097,110 @@ Agregar columnas nullable a `users` rompió tres pruebas con
 `create()` sólo trae los atributos que insertó. Se resolvió con valores por
 omisión en `$attributes` del modelo, que es lo que evita que vuelva a pasar con
 cada columna que se agregue.
+
+## Pendientes de la Fase 9 — cifrado, rotación, agregados y fugas
+
+### Faltaban dos de las cuatro columnas cifradas
+
+El Doc 06 §4 lista cuatro cosas que van cifradas a nivel de aplicación. Estaban
+`respuestas.valor_texto` y `notas_profesionales.contenido`; faltaban los valores
+del expediente y los textos de interpretación resueltos. La migración de
+respuestas incluso llevaba el comentario de que iba cifrado, y ahí sí estaba el
+cast — pero en expediente no.
+
+`«Puntaje compatible con sintomatología depresiva moderada»` es material
+clínico, y a diferencia del puntaje —que no dice nada sin su baremo— este texto
+se entiende leyéndolo. Es la diferencia entre un número y un expediente.
+
+Se cifra TODA la columna, no sólo la de secciones o instrumentos sensibles.
+Decidirlo caso por caso exigiría consultar el catálogo en cada lectura de
+atributo —una consulta por celda de una pantalla de expediente— y el día que
+alguien reclasificara una sección, los datos viejos quedarían ilegibles o los
+nuevos en claro sin que nada protestara. Es un superconjunto de lo que el
+documento pide, a propósito.
+
+El precio es que esas columnas dejan de ser buscables por SQL. Nadie las busca
+—se leen por campo, no por contenido— y una búsqueda de texto libre sobre
+domicilios y antecedentes clínicos sería de todas formas un problema de
+privacidad, no una funcionalidad.
+
+Las pruebas comparan contra la COLUMNA CRUDA con `DB::table()`. Leer por el
+modelo probaría que el cast descifra, que es justo lo que no está en duda.
+
+### La rotación de llave y su lista
+
+`APP_KEY` descifra cinco cosas. Cambiarla sin recifrar las deja ilegibles PARA
+SIEMPRE: no es un error que se arregle volviendo atrás, porque los datos siguen
+cifrados con la llave vieja que ya nadie tiene.
+
+`mentia:rotar-llave` recifra por trozos, con `--simular` para verificar antes de
+escribir. Si un solo valor no se puede descifrar con la llave actual, **no rota
+nada más**: dejar la base a medias, con unas columnas en la llave nueva y otras
+en una que nadie conoce, es peor que no empezar.
+
+La constante `COLUMNAS_CIFRADAS` **es** la definición de qué está cifrado en el
+sistema, y una prueba la compara contra los casts declarados en todos los
+modelos del dominio. Agregar un cast `encrypted` y olvidar la lista produciría
+una rotación que parece exitosa y deja esa columna con la llave vieja. La
+mutación lo confirma: al quitar `expediente_valores` de la lista, la prueba lo
+dice con nombre y apellido.
+
+La llave nueva se pone en `APP_KEY` DESPUÉS de rotar, no antes: mientras el
+comando corre, la aplicación tiene que poder seguir descifrando con la vieja lo
+que todavía no se convirtió.
+
+### El reporte grupal tiene tamaño mínimo
+
+Un reporte grupal de tres personas no es un agregado: es la lista de esas tres
+personas escrita de otra forma. En una NOM-035 anónima eso deshace el anonimato
+—el jefe sabe quiénes son los tres— y con él la única razón por la que la gente
+contestó con la verdad.
+
+El mínimo es 5, configurable hacia arriba, y el código no lo deja bajar. Una
+organización que quisiera bajarlo estaría desactivando lo único que impide que
+un reporte "agregado" señale a una persona.
+
+El semáforo agregado **cuenta etiquetas, no promedia valores**. Promediar
+categorías —«medio» y «muy alto» dan «alto»— produce un número que no describe a
+nadie del grupo y esconde justamente a quien está peor.
+
+El grupal nunca lista personas, ni siquiera cuando la asignación es nominal:
+existe para ver el bosque, y quien necesite el árbol abre el resultado
+individual, que pasa por AccesoService uno por uno.
+
+La NOM-035 es el mismo agregado con otra portada, y eso es a propósito: los
+cortes y los semáforos oficiales los aplica el pipeline con `nom035_cortes`, no
+la plantilla. Una plantilla que calculara sus propios niveles produciría un
+documento con formato oficial y números que no lo son.
+
+### La suite de fugas cubre las Fases 6 a 9
+
+Nueve intentos contra resultados, perfil longitudinal, generación y descarga de
+reportes, alertas, ARCO y validación de borradores de IA. Todos responden 404,
+nunca 403: un 403 confirma que el recurso existe, y un resultado que existe
+significa que esa persona fue evaluada allí.
+
+La intrusa tiene TODOS los permisos que hagan falta, en SU propia organización.
+Es el punto: quien tiene `resultados.ver_detalle` lo tiene en su tenant, no en
+el de junto. Una intrusa sin permisos probaría el `can:` y no el aislamiento.
+
+Escribiendo la prueba del listado de alertas apareció la demostración más
+directa del aislamiento: el propio andamio quedó filtrado. Contar las alertas
+existentes desde la prueba requirió `withoutGlobalScopes()`, porque el contexto
+activo era el de la intrusa.
+
+### Procedimiento de vulneraciones
+
+`docs/incidentes.md` cubre la obligación del Doc 06 §4. Está escrito para leerse
+un martes a las tres de la mañana: qué cuenta como vulneración notificable y qué
+no, las primeras dos horas en orden, qué se le dice al titular —en español
+llano, porque una persona que recibe un aviso lleno de tecnicismos no puede
+tomar ninguna medida—, el caso de `APP_KEY` comprometida, y el procedimiento de
+prueba de restauración.
+
+La verificación de la restauración no es que el volcado cargue: es que los datos
+cifrados se LEAN. Si lanza `DecryptException`, el respaldo está cifrado con una
+llave que ya no existe y no sirve para nada.
+
+Y una regla al final: **una prueba automatizada por cada fuga real**. Un
+incidente que no deja una prueba detrás se repite.

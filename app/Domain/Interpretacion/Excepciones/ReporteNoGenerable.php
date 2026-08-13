@@ -39,6 +39,22 @@ class ReporteNoGenerable extends RuntimeException
         );
     }
 
+    /**
+     * Un reporte grupal de un grupo de tres personas no es un agregado: es la
+     * lista de esas tres personas escrita de otra forma. En una NOM-035 anónima
+     * eso deshace el anonimato —el jefe sabe quiénes son los tres— y con él la
+     * única razón por la que la gente contestó con la verdad.
+     */
+    public static function porGrupoDemasiadoChico(int $cuantas, int $minimo): self
+    {
+        return new self(sprintf(
+            'Sólo hay %d evaluaciones contestadas y el mínimo para un reporte grupal es %d. '
+            .'Con menos, el agregado identifica a las personas.',
+            $cuantas,
+            $minimo,
+        ));
+    }
+
     public static function porArchivoPerdido(string $uuid): self
     {
         return new self(sprintf('El PDF del reporte %s no está en el almacenamiento.', $uuid));

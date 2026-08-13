@@ -35,6 +35,26 @@ class ResultadoInterpretacion extends Modelo
         'audiencia', 'texto_resuelto', 'bandera', 'orden',
     ];
 
+    /**
+     * El texto resuelto va CIFRADO (Doc 06 §4, "resultados sensibilidad 3–4").
+     *
+     * «Puntaje compatible con sintomatología depresiva moderada» es material
+     * clínico, y a diferencia del puntaje —que no dice nada sin su baremo— este
+     * texto se entiende leyéndolo. Quien abra un respaldo de la base no debe
+     * poder leer el tamizaje de nadie.
+     *
+     * Se cifran TODOS, no sólo los de instrumentos sensibles: decidirlo por
+     * instrumento obligaría a consultar su nivel en cada lectura, y el día que
+     * alguien reclasificara un instrumento los textos viejos quedarían
+     * ilegibles o los nuevos en claro sin que nada protestara.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return ['texto_resuelto' => 'encrypted'];
+    }
+
     /** @return BelongsTo<Aplicacion, $this> */
     public function aplicacion(): BelongsTo
     {

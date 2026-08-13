@@ -72,8 +72,15 @@ Todo el detalle está en `docs/convenciones.md`.
 
 ## Estado
 
-**Fases 0, 1, 2, 3, 5, 6, 7, 8 y 9 completas.** 304 pruebas verdes, Pint limpio,
+**Fases 0, 1, 2, 3, 5, 6, 7, 8 y 9 completas.** 332 pruebas verdes, Pint limpio,
 PHPStan nivel 6 sin errores, `npm run build` OK.
+
+**Cerrado el pendiente de seguridad:** las cuatro columnas del Doc 06 §4 van
+cifradas —faltaban `expediente_valores.valor_texto` y
+`resultados_interpretacion.texto_resuelto`—, existe `mentia:rotar-llave` con
+simulacro, la suite de fugas cubre las Fases 6 a 9, y hay reporte grupal y
+NOM-035 con tamaño mínimo de grupo. `docs/incidentes.md` documenta el
+procedimiento de vulneraciones y de restauración.
 
 **El panel ya existe** y hay pantalla de entrar: los dos pendientes que
 arrastraban todas las fases quedaron cerrados. `CatalogoSecciones` declara cada

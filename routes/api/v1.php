@@ -222,6 +222,11 @@ Route::middleware(['auth:sanctum', 'organizacion', 'dos_factores'])->group(funct
     Route::post('reportes/integrador', [ReporteController::class, 'integrador'])
         ->middleware('can:reportes.grupales')->name('reportes.integrador');
 
+    // Grupal y NOM-035: el mismo agregado con distinta portada, y ninguno
+    // identifica a nadie. Exigen su propio permiso.
+    Route::post('reportes/asignaciones/{asignacion}', [ReporteController::class, 'grupal'])
+        ->middleware('can:reportes.grupales')->name('reportes.grupal');
+
     Route::get('reportes/{reporte}', [ReporteController::class, 'show'])->name('reportes.show');
 
     Route::post('reportes/{reporte}/validar', [ReporteController::class, 'validarBorrador'])

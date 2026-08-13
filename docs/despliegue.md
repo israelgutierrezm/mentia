@@ -58,8 +58,18 @@ guárdala en un gestor de secretos, no en el repositorio ni en el respaldo de la
 base —un respaldo que incluye la llave que lo descifra no es un respaldo
 cifrado—.
 
-Rotarla exige descifrar y volver a cifrar cada fila afectada. No hay comando
-todavía; escribirlo es trabajo pendiente antes de la primera rotación.
+Rotarla exige descifrar y volver a cifrar cada fila afectada:
+
+```bash
+php artisan key:generate --show
+php artisan mentia:rotar-llave --nueva=base64:… --simular
+php artisan mentia:rotar-llave --nueva=base64:…
+```
+
+La llave nueva se pone en `APP_KEY` **después**, no antes: mientras el comando
+corre, la aplicación tiene que poder seguir descifrando con la vieja lo que
+todavía no se ha convertido. El procedimiento completo está en
+`docs/incidentes.md` §4.
 
 ---
 
@@ -180,8 +190,9 @@ Honestamente, para que esto sea producción:
 - **Contenido de instrumentos.** La Fase 4 está bloqueada: los reactivos del
   PHQ-9, del M-CHAT-R/F y de las Guías de Referencia de la NOM-035 no se
   inventan. Sin ellos hay maquinaria y no hay pruebas que aplicar.
-- **Comando de rotación de `APP_KEY`.**
-- **Procedimiento de notificación de vulneraciones** (obligación LFPDPPP ante
-  afectación significativa): el Doc 06 §4 lo exige documentado y todavía no
-  existe.
-- **Pruebas de restauración de respaldo**, documentadas con su fecha.
+- **La primera prueba de restauración**, con su fecha anotada. El procedimiento
+  está escrito (`docs/incidentes.md` §5); lo que falta es haberlo corrido.
+- **Canal SMS de alertas.** Está declarado en `alerta_destinatarios` y sólo deja
+  registro: es de la V2.
+- **Reportes en PDF con gráficas.** Hoy salen en tabla; el perfil gráfico existe
+  en pantalla, no en el documento.

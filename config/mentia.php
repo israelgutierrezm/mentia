@@ -55,4 +55,22 @@ return [
         'nivel_minimo_2fa' => (int) env('MENTIA_NIVEL_MINIMO_2FA', 3),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Reportes
+    |--------------------------------------------------------------------------
+    |
+    | `minimo_grupo`: cuántas evaluaciones contestadas hacen falta para generar
+    | un reporte grupal. Con menos, el agregado deja de serlo: un reporte de un
+    | grupo de tres es la lista de esas tres personas escrita de otra forma, y
+    | en una NOM-035 anónima eso deshace el anonimato.
+    |
+    | Se puede subir; el código no lo deja bajar de 5.
+    |
+    */
+
+    'reportes' => [
+        'minimo_grupo' => (int) env('MENTIA_MINIMO_GRUPO', 5),
+    ],
+
 ];
