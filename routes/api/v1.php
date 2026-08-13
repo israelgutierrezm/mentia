@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AgrupacionController;
 use App\Http\Controllers\Api\V1\AlcanceController;
+use App\Http\Controllers\Api\V1\AsignacionController;
 use App\Http\Controllers\Api\V1\CatalogoController;
 use App\Http\Controllers\Api\V1\EstadoController;
 use App\Http\Controllers\Api\V1\ExpedienteController;
@@ -103,6 +104,31 @@ Route::middleware(['auth:sanctum', 'organizacion'])->group(function (): void {
     Route::post('tenant/instrumentos/{version}/contenido/importar', [TenantInstrumentoController::class, 'importarContenido'])
         ->middleware('can:instrumentos.capturar_contenido')
         ->name('tenant.instrumentos.importar');
+
+    // ── Asignaciones (Doc 07 §4) ──────────────────────────────────────────
+    // Por FOLIO, no por id: es lo que se dicta por teléfono y lo que un
+    // integrador guarda en su sistema.
+    Route::middleware('can:evaluaciones.asignar')->group(function (): void {
+        Route::get('asignaciones', [AsignacionController::class, 'index'])
+            ->name('asignaciones.index');
+        Route::get('asignaciones/{asignacion}', [AsignacionController::class, 'show'])
+            ->name('asignaciones.show');
+        Route::get('asignaciones/{asignacion}/destinatarios', [AsignacionController::class, 'destinatarios'])
+            ->name('asignaciones.destinatarios');
+        Route::post('asignaciones/{asignacion}/recordatorios', [AsignacionController::class, 'recordatorios'])
+            ->name('asignaciones.recordatorios');
+        Route::post('asignaciones/{asignacion}/cerrar', [AsignacionController::class, 'cerrar'])
+            ->name('asignaciones.cerrar');
+        Route::post('asignaciones/{asignacion}/cancelar', [AsignacionController::class, 'cancelar'])
+            ->name('asignaciones.cancelar');
+        Route::post('asignaciones/{asignacion}/destinatarios/{destinatario}/exentar', [AsignacionController::class, 'exentar'])
+            ->name('asignaciones.exentar');
+    });
+
+    // El `can:` de la creación lo resuelve el FormRequest: una asignación
+    // discreta exige su propio permiso.
+    Route::post('asignaciones', [AsignacionController::class, 'store'])
+        ->name('asignaciones.store');
 
     // ── Accesos ───────────────────────────────────────────────────────────
     Route::middleware('can:roles.gestionar')->group(function (): void {

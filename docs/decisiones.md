@@ -412,3 +412,77 @@ columnas opcionales se leen ahora con un lector tolerante.
 `/api/v1/personas/{uuid}` y luego a `/api/v1/catalogo/...`. Cada vez que esa
 ruta se implementó, la prueba empezó a medir un 401 de autenticación en vez de
 un 404. Ahora apunta a una ruta que ninguna fase va a definir.
+
+---
+
+## Fase 5 — Asignaciones y baterías
+
+### El CHECK de instrumento XOR batería vive en la BASE
+
+No sólo en el servicio. Una asignación con los dos —o con ninguno— es algo que
+el motor de aplicación de la Fase 6 no sabría presentar, y un INSERT que se
+salte el dominio tampoco puede crearla. Hay prueba de las dos capas: el servicio
+explica qué pasó, la base impide que ocurra.
+
+Se agregó un segundo CHECK, `ventana_fin > ventana_inicio`: una ventana
+invertida deja a todo el mundo fuera sin que nada lo explique.
+
+### Los tokens se guardan hasheados y expiran con la VENTANA
+
+Tres decisiones que se sostienen entre sí:
+
+- **Hash SHA-256, no el token.** Quien lea la base —un respaldo, un volcado,
+  una consulta de soporte— no debe poder contestar en nombre de nadie. El token
+  en claro sólo existe el instante en que se manda. Se usa SHA-256 y no bcrypt
+  porque el token ya son 32 bytes aleatorios: no hay nada que reforzar, y bcrypt
+  obligaría a recorrer la tabla comparando fila por fila en vez de buscar por
+  índice.
+- **Un solo uso, con `lockForUpdate` al canjear.** Sin el bloqueo, dos
+  peticiones con la misma liga reenviada pasarían las dos la comprobación de
+  "todavía no se ha usado" antes de que ninguna lo marcara.
+- **Expiran con la ventana de su asignación**, no con un plazo propio. Cerrar la
+  asignación los invalida al instante; sin eso, una liga enviada hace tres días
+  seguiría abriendo la evaluación después del cierre.
+
+`resolver()` devuelve null en todos los casos de fallo sin distinguirlos. Un
+mensaje que dijera "ese token ya se usó" le confirmaría a quien prueba tokens al
+azar que acertó uno.
+
+### Una discreta ajena responde 404, no 403
+
+Un 403 confirmaría que ese folio existe, y la existencia de la asignación es
+justo lo que la discreción protege: en el caso clínico, que el área sepa que hay
+una evaluación asignada a alguien ya es una filtración, aunque nadie vea el
+resultado.
+
+### El avance de una anónima da sólo conteos
+
+`destinatariosDetallados()` lanza excepción y la API responde 409 con el
+agregado. No es una decisión de interfaz: saber quién ya contestó y quién no
+permite deducir de quién es cada respuesta en un centro de trabajo chico, y eso
+destruye el anonimato que hace que la gente conteste con la verdad.
+
+### La expansión dinámica va por EVENTO, no por llamada directa
+
+`GestorAgrupaciones` anuncia `PersonaInscritaEnAgrupacion` y Evaluaciones lo
+escucha. Organizaciones no tiene por qué saber que existen las asignaciones.
+
+El listener agrega **sólo a quien entró**, no rebarre el grupo: inscribir a
+treinta alumnos no puede costar treinta barridos. `expandirDinamica()` existe
+aparte como reconciliación manual, y es idempotente.
+
+### El Mailable de invitación no se encola
+
+Lleva el token en claro. Encolarlo lo dejaría escrito en la tabla `jobs` y en
+los paneles de Horizon. Quien quiera mandar trescientas en segundo plano encola
+el envío completo —que genera los tokens dentro del job— no este objeto.
+
+El correo tampoco dice qué instrumento es: un asunto que diga "Contesta tu
+PHQ-9" revela una evaluación de salud mental a quien mire la bandeja de entrada
+por encima del hombro.
+
+### Notificar regenera el token
+
+Es consecuencia de que el claro sólo exista al generarse. Un recordatorio deja
+inservible el correo original, lo cual es correcto —una liga vieja circulando es
+una liga que alguien más puede usar— y por eso el texto del correo lo advierte.

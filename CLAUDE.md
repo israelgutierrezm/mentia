@@ -72,7 +72,7 @@ Todo el detalle está en `docs/convenciones.md`.
 
 ## Estado
 
-**Fases 0, 1, 2 y 3 completas.** 119 pruebas verdes, Pint limpio, PHPStan nivel 6
+**Fases 0, 1, 2, 3 y 5 completas.** 149 pruebas verdes, Pint limpio, PHPStan nivel 6
 sin errores, `npm run build` OK.
 
 **Fase 2 (M4) — expediente y consentimientos:**
@@ -109,9 +109,24 @@ sin errores, `npm run build` OK.
   y rollback total ante un solo error.
 - Paneles de catálogo y de habilitación, más los endpoints del Doc 07 §3.
 
-**Sigue la Fase 4** (seed Ola 1) — pero está bloqueada, ver abajo. Si se
-prefiere avanzar, la **Fase 5** (M6: asignaciones y baterías) no depende de
-ella.
+**Fase 5 (M6) — asignaciones y baterías:**
+
+- CHECK en la BASE de instrumento XOR batería y de ventana coherente, no sólo
+  en el servicio. Probadas las dos capas.
+- Tokens de 32 bytes guardados **hasheados**, de un solo uso, con canje bajo
+  `lockForUpdate`. Expiran con la **ventana** de su asignación; cerrarla los
+  invalida al instante.
+- Dinámica vs snapshot: `incluir_nuevos_miembros` + listener del evento
+  `PersonaInscritaEnAgrupacion`. La expansión respeta membresías vigentes.
+- Discretas: sólo las ve quien las creó y los roles de nivel 4. Por API
+  responden **404, no 403** — un 403 confirmaría que el folio existe.
+- Anónimas: el avance da **sólo conteos**; el detalle por persona lanza
+  excepción y la API responde 409 con el agregado.
+- Canal de notificación abstraído (`CanalNotificacion`), correo en la V1. El
+  Mailable **no se encola**: lleva el token en claro.
+
+**Sigue la Fase 6** (M7: motor de aplicación web), que es la continuación
+natural — o la **Fase 4** cuando haya contenido de instrumentos.
 
 **Dos bloqueos estructurales más adelante, ya identificados:**
 
