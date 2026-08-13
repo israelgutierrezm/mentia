@@ -58,6 +58,24 @@ class ExpedienteTest extends TestCase
         );
     }
 
+    public function test_lo_capturado_por_el_titular_no_es_vigente_hasta_validarse(): void
+    {
+        $escenario = EscenarioTenant::nuevo()->activar();
+        $persona = $escenario->persona();
+
+        $campo = $this->campo('telefono');
+
+        $pendiente = $this->captura()->capturar($persona, $campo, '5500000000', $persona);
+
+        $this->assertSame('pendiente_validacion', $pendiente->estado);
+
+        $this->assertNull(
+            $this->captura()->valorVigenteDe($this->captura()->expedienteDe($persona), $campo),
+            'Los datos los aporta la persona, pero quien responde de ellos ante la '
+            .'organización es un profesional.'
+        );
+    }
+
     public function test_el_vigente_es_la_mayor_version_validada(): void
     {
         $escenario = EscenarioTenant::nuevo()->activar();
@@ -66,23 +84,52 @@ class ExpedienteTest extends TestCase
 
         $campo = $this->campo('telefono');
 
-        // El titular captura: nace pendiente.
-        $pendiente = $this->captura()->capturar($persona, $campo, '5500000000', $persona);
-        $this->assertSame('pendiente_validacion', $pendiente->estado);
+        $primero = $this->captura()->capturar($persona, $campo, '5500000000', $persona);
+        $this->captura()->validar($primero, $profesional);
 
-        $expediente = $this->captura()->expedienteDe($persona);
+        $segundo = $this->captura()->capturar($persona, $campo, '5511112222', $persona);
+        $this->captura()->validar($segundo, $profesional);
 
-        $this->assertNull(
-            $this->captura()->valoresVigentes($expediente)->get($campo->id),
-            'Lo capturado por el titular no es vigente hasta que alguien lo valida.'
+        $vigente = $this->captura()->valorVigenteDe(
+            $this->captura()->expedienteDe($persona),
+            $campo
         );
 
-        $this->captura()->validar($pendiente, $profesional);
+        $this->assertNotNull($vigente);
+        $this->assertSame(2, $vigente->version);
+        $this->assertSame(
+            '5511112222',
+            $vigente->contenido(),
+            'El vigente es la mayor versión validada, no la primera ni la última capturada.'
+        );
+    }
 
-        $vigente = $this->captura()->valoresVigentes($expediente)->get($campo->id);
+    public function test_una_version_mas_nueva_sin_validar_no_desplaza_a_la_vigente(): void
+    {
+        $escenario = EscenarioTenant::nuevo()->activar();
+        $persona = $escenario->persona();
+        $profesional = $escenario->persona();
 
-        $this->assertNotNull($vigente, 'Validado, ya debe ser el vigente.');
-        $this->assertSame('5500000000', $vigente->contenido());
+        $campo = $this->campo('telefono');
+
+        $validado = $this->captura()->capturar($persona, $campo, '5500000000', $persona);
+        $this->captura()->validar($validado, $profesional);
+
+        // El titular manda una corrección que todavía nadie revisó.
+        $this->captura()->capturar($persona, $campo, '5599999999', $persona);
+
+        $vigente = $this->captura()->valorVigenteDe(
+            $this->captura()->expedienteDe($persona),
+            $campo
+        );
+
+        $this->assertNotNull($vigente);
+        $this->assertSame(
+            '5500000000',
+            $vigente->contenido(),
+            'Una corrección sin validar no puede desplazar al dato que la organización '
+            .'ya dio por bueno.'
+        );
     }
 
     public function test_lo_que_captura_un_profesional_nace_validado(): void

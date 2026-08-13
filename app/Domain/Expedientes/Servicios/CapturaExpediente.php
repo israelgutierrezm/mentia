@@ -137,6 +137,24 @@ class CapturaExpediente
     }
 
     /**
+     * El valor vigente de UN campo.
+     *
+     * Existe además de valoresVigentes() porque quien pregunta por un dato
+     * concreto —"¿cuál es su teléfono?"— no debería tener que traerse el
+     * expediente entero y buscar dentro.
+     */
+    public function valorVigenteDe(Expediente $expediente, ExpedienteCampo $campo): ?ExpedienteValor
+    {
+        return ExpedienteValor::query()
+            ->where('expediente_id', $expediente->id)
+            ->where('campo_id', $campo->id)
+            ->validados()
+            ->with('opcion')
+            ->orderByDesc('version')
+            ->first();
+    }
+
+    /**
      * @return Collection<int, ExpedienteValor>
      */
     public function pendientesDeValidar(Expediente $expediente): Collection
