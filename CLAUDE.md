@@ -72,7 +72,7 @@ Todo el detalle está en `docs/convenciones.md`.
 
 ## Estado
 
-**Fases 0, 1, 2, 3, 5, 6 y 7 completas.** 240 pruebas verdes, Pint limpio,
+**Fases 0, 1, 2, 3, 5, 6, 7 y 8 completas.** 262 pruebas verdes, Pint limpio,
 PHPStan nivel 6 sin errores, `npm run build` OK.
 
 **Fase 2 (M4) — expediente y consentimientos:**
@@ -190,8 +190,32 @@ PHPStan nivel 6 sin errores, `npm run build` OK.
   o `--instrumento=ID`) y endpoints del Doc 07 §6.
 - 39 pruebas nuevas, casi todas casos dorados.
 
-**Sigue la Fase 8** (M9: alertas, protocolos y vistas de resultados) — o la
-**Fase 4** cuando haya contenido de instrumentos.
+**Fase 8 (M9) — alertas, protocolos y vistas:**
+
+- **Sin protocolo de actuación registrado NO se asigna un instrumento con
+  centinelas.** Es la única comprobación del sistema que protege a quien
+  contesta, no a los datos. Va en la creación de la asignación, no al habilitar.
+- Destinatarios **por rol, no por persona**: una lista de correos se queda
+  apuntando a quien renunció hace dos años.
+- El correo de alerta **no lleva el contenido de la respuesta**, ni el nombre de
+  la persona, ni el del instrumento. No se encola: llegaría tarde.
+- **Cerrar una alerta exige decir qué se hizo** (mínimo 20 caracteres). En el
+  centro, las críticas arriba y las más VIEJAS primero.
+- `protocolo_reglas` con escalonamiento automático: asignar segunda etapa,
+  notificar rol, marcar seguimiento. **Nada pasa en silencio** — alerta +
+  bitácora en cada acción, y `protocolo_ejecuciones` impide que recalificar
+  vuelva a dispararlo. `RegistroBitacora::registrarAccion()` es el registro sin
+  actor humano.
+- El escalonamiento **hereda propósito y autor de la asignación original**; no
+  depende de un propósito con clave mágica.
+- Mensaje de cierre con **recursos de apoyo configurables**, sólo en instrumentos
+  de sensibilidad 3–4.
+- Vistas: centro de alertas, resultado individual por audiencia con perfil por
+  escalas, y perfil longitudinal agrupado **por dominio** con SVG a mano.
+- API §6 de alertas. El stub `NotificacionRegistrada` ya no existe.
+
+**Sigue la Fase 9** (M10: reportes, PDF, IA y endurecimiento) — o la **Fase 4**
+cuando haya contenido de instrumentos.
 
 **Pendiente que arrastran todas las fases:** el panel sigue siendo el
 placeholder de la Fase 0 y **no se comparte ninguna prop `menu`**, así que

@@ -71,6 +71,12 @@ class Alerta extends Modelo
         return $this->belongsTo(Reactivo::class);
     }
 
+    /** @return BelongsTo<Persona, $this> */
+    public function atendidaPor(): BelongsTo
+    {
+        return $this->belongsTo(Persona::class, 'atendida_por');
+    }
+
     public function estaAbierta(): bool
     {
         return in_array($this->estado, ['nueva', 'notificada'], true);

@@ -36,6 +36,19 @@ class AsignacionInvalida extends RuntimeException
         return new self("La asignación está en «{$estado}» y ya no admite cambios.");
     }
 
+    /**
+     * Requisito ético del Doc 06 §5, no burocrático.
+     *
+     * Un instrumento con reactivos centinela detecta ideación suicida.
+     * Asignarlo sin haber definido quién responde y en cuánto tiempo produce
+     * una alerta crítica a las once de la noche en un buzón que nadie mira
+     * hasta el lunes.
+     */
+    public static function porFaltarProtocolo(string $motivo): self
+    {
+        return new self($motivo);
+    }
+
     public static function porSerAnonima(): self
     {
         return new self(

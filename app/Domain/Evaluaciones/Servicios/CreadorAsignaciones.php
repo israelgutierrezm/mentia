@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Domain\Evaluaciones\Servicios;
 
+use App\Domain\Alertas\Servicios\ProtocoloDeActuacion;
+use App\Domain\Catalogo\Modelos\VersionInstrumento;
 use App\Domain\Evaluaciones\Excepciones\AsignacionInvalida;
 use App\Domain\Evaluaciones\Modelos\Asignacion;
 use App\Domain\Evaluaciones\Modelos\AsignacionDestinatario;
+use App\Domain\Evaluaciones\Modelos\BateriaInstrumento;
 use App\Domain\Evaluaciones\Modelos\Proposito;
 use App\Domain\Organizaciones\Modelos\Agrupacion;
 use App\Domain\Organizaciones\Modelos\AgrupacionMiembro;
+use App\Domain\Organizaciones\Modelos\Organizacion;
 use App\Domain\Personas\Modelos\Persona;
 use App\Soporte\Multitenencia\ContextoOrganizacion;
 use Illuminate\Support\Carbon;
@@ -32,6 +36,7 @@ class CreadorAsignaciones
     public function __construct(
         private readonly ContextoOrganizacion $contexto,
         private readonly GestorTokens $tokens,
+        private readonly ProtocoloDeActuacion $protocolo,
     ) {}
 
     /**
@@ -76,6 +81,7 @@ class CreadorAsignaciones
         }
 
         $this->exigirExactamenteUno($versionInstrumentoId, $bateriaId);
+        $this->exigirProtocoloDeActuacion($versionInstrumentoId, $bateriaId, $organizacionId);
 
         $inicio = $ventanaInicio !== null ? Carbon::parse($ventanaInicio) : Carbon::now();
         $fin = $ventanaFin !== null
@@ -242,6 +248,44 @@ class CreadorAsignaciones
     /**
      * @throws AsignacionInvalida
      */
+    /**
+     * Sin protocolo de actuación registrado NO se asigna un instrumento con
+     * reactivos centinela (Doc 06 §5).
+     *
+     * La comprobación va aquí, en la creación, y no al habilitar el
+     * instrumento: habilitar es un acto administrativo que puede pasar meses
+     * antes, y el protocolo puede haberse borrado en medio. Lo que importa es
+     * que EN EL MOMENTO en que alguien va a contestar haya quién responda.
+     *
+     * @throws AsignacionInvalida
+     */
+    private function exigirProtocoloDeActuacion(
+        ?int $versionId,
+        ?int $bateriaId,
+        int $organizacionId,
+    ): void {
+        $versiones = $versionId !== null
+            ? VersionInstrumento::query()->whereKey($versionId)->get()
+            : VersionInstrumento::query()
+                ->whereIn(
+                    'id',
+                    BateriaInstrumento::query()
+                        ->where('bateria_id', $bateriaId)
+                        ->pluck('version_instrumento_id')
+                )
+                ->get();
+
+        $organizacion = Organizacion::query()->findOrFail($organizacionId);
+
+        foreach ($versiones as $version) {
+            $motivo = $this->protocolo->motivoDeBloqueo($organizacion, $version);
+
+            if ($motivo !== null) {
+                throw AsignacionInvalida::porFaltarProtocolo($motivo);
+            }
+        }
+    }
+
     private function exigirExactamenteUno(?int $versionId, ?int $bateriaId): void
     {
         /*

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AgrupacionController;
 use App\Http\Controllers\Api\V1\AlcanceController;
+use App\Http\Controllers\Api\V1\AlertaController;
 use App\Http\Controllers\Api\V1\AplicacionController;
 use App\Http\Controllers\Api\V1\AsignacionController;
 use App\Http\Controllers\Api\V1\BateriaController;
@@ -204,6 +205,13 @@ Route::middleware(['auth:sanctum', 'organizacion'])->group(function (): void {
         ->name('resultados.longitudinal');
     Route::get('personas/{persona}/comparar-puesto/{perfilPuesto}', [ResultadoController::class, 'compararPuesto'])
         ->name('resultados.comparar-puesto');
+
+    // ── Alertas (Doc 07 §6) ───────────────────────────────────────────────
+    Route::middleware('can:alertas.atender')->group(function (): void {
+        Route::get('alertas', [AlertaController::class, 'index'])->name('alertas.index');
+        Route::post('alertas/{alerta}/atender', [AlertaController::class, 'atender'])
+            ->name('alertas.atender');
+    });
 
     // ── Accesos ───────────────────────────────────────────────────────────
     Route::middleware('can:roles.gestionar')->group(function (): void {

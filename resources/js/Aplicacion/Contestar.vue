@@ -438,12 +438,26 @@ function reloj(segundos) {
             diagnostica). Un número aquí es una interpretación sin nadie que la
             sostenga, y en un tamizaje clínico eso hace daño.
         -->
-        <section v-else class="space-y-3 rounded-xl border border-slate-200 bg-white p-8 text-center">
+        <section v-else class="space-y-4 rounded-xl border border-slate-200 bg-white p-8 text-center">
             <p class="text-xl font-medium text-slate-900">Listo, terminaste.</p>
             <p class="text-sm text-slate-600">
                 Gracias por tu tiempo. Tus respuestas quedaron guardadas y las va a
                 revisar un profesional. Ya puedes cerrar esta pantalla.
             </p>
+
+            <!--
+                Recursos de apoyo, sólo en instrumentos sensibles y sólo si la
+                organización los configuró. No dice qué salió —eso sería una
+                interpretación sin nadie que la sostenga— pero sí a dónde acudir
+                si algo de lo que se preguntó dejó a la persona mal.
+            -->
+            <div
+                v-if="estructura.recursos_apoyo"
+                class="rounded-lg bg-blue-50 p-4 text-left text-sm text-blue-900"
+            >
+                <p class="font-medium">Si necesitas hablar con alguien</p>
+                <p class="mt-1 whitespace-pre-line">{{ estructura.recursos_apoyo }}</p>
+            </div>
         </section>
     </div>
 </template>

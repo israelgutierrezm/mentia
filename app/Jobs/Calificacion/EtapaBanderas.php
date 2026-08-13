@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs\Calificacion;
 
+use App\Domain\Alertas\Servicios\EjecutorProtocolos;
 use App\Domain\Interpretacion\Datos\ContextoCalificacion;
 use App\Domain\Interpretacion\Modelos\ResultadoInterpretacion;
 use App\Domain\Interpretacion\Modelos\ResultadoNormalizado;
@@ -20,8 +21,9 @@ use Illuminate\Support\Facades\DB;
  * última en llegar haría que una regla verde de prioridad baja tapara una roja,
  * y el rojo es justamente lo que nadie puede perderse.
  *
- * Los `protocolo_reglas` —asignar automáticamente la segunda etapa de un
- * M-CHAT, notificar a un rol— son de la Fase 8. Van aquí cuando lleguen.
+ * Aquí también corre el ESCALONAMIENTO AUTOMÁTICO (`protocolo_reglas`):
+ * asignar la segunda etapa de un M-CHAT, avisar a un rol, marcar seguimiento.
+ * Nada de eso pasa en silencio — cada acción genera alerta y deja bitácora.
  */
 class EtapaBanderas extends EtapaDelPipeline
 {
@@ -34,6 +36,21 @@ class EtapaBanderas extends EtapaDelPipeline
     }
 
     protected function procesar(ContextoCalificacion $contexto): void
+    {
+        $aplicacion = $contexto->aplicacion;
+
+        $this->copiarBanderas($contexto);
+
+        /*
+         * El escalonamiento corre AUNQUE la aplicación sea anónima: una NOM-035
+         * anónima con un dominio en rojo tiene que disparar el protocolo del
+         * centro de trabajo igual. Lo que no puede hacer es asignar algo a una
+         * persona, y de eso se encarga el propio ejecutor.
+         */
+        app(EjecutorProtocolos::class)->ejecutar($aplicacion);
+    }
+
+    private function copiarBanderas(ContextoCalificacion $contexto): void
     {
         $aplicacion = $contexto->aplicacion;
 

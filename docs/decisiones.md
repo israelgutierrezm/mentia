@@ -818,3 +818,126 @@ Restar un percentil de una puntuación T daría "quince puntos de mejora" que no
 describen nada de la persona. Y el umbral por omisión es una desviación estándar
 de la escala en que se mide: no es un número redondo elegido al azar, es donde
 la diferencia empieza a ser mayor que el error de medición típico.
+
+## Fase 8 — Alertas, protocolos y vistas de resultados
+
+### Sin protocolo de actuación no se asigna un instrumento con centinelas
+
+Es la única comprobación del sistema que existe para proteger a quien contesta,
+no a los datos. Un instrumento con reactivos centinela detecta ideación
+suicida; habilitarlo sin haber definido quién responde, en cuánto tiempo y a
+dónde se canaliza produce exactamente esto: una alerta crítica a las once de la
+noche en un buzón que nadie mira hasta el lunes.
+
+La compuerta va en la CREACIÓN de la asignación, no al habilitar el instrumento:
+habilitar es un acto administrativo que puede pasar meses antes y el protocolo
+puede haberse borrado en medio. Lo que importa es que en el momento en que
+alguien va a contestar haya quién responda.
+
+El mensaje dice qué falta —registrar el protocolo, designar destinatarios, o las
+dos— porque un "no se puede asignar" a secas manda a quien administra a
+adivinar. Y se exigen 80 caracteres mínimos: el mínimo no garantiza calidad,
+pero impide despachar el requisito con un punto.
+
+### Los destinatarios se configuran por ROL, no por persona
+
+Quien atiende las alertas críticas es la psicóloga de guardia, y las personas
+entran y salen de ese rol sin que nadie tenga que actualizar una lista. Una
+lista de correos se queda apuntando a quien renunció hace dos años, y esa es
+exactamente la alerta que nadie atiende.
+
+### El correo de alerta no lleva el contenido de la respuesta
+
+Dice que hay una alerta y dónde verla, y nada más: ni el reactivo, ni el nombre
+de la persona evaluada, ni el del instrumento. Un correo viaja por servidores
+que no son de nadie, se queda en la bandeja de entrada de quien lo reciba para
+siempre y se reenvía sin pensarlo. El detalle se ve dentro del sistema, donde el
+acceso pasa por AccesoService y queda en bitácora.
+
+Tampoco se encola: una alerta crítica que espera su turno detrás de doscientos
+correos de invitación llega cuando ya no sirve, y el tiempo de respuesta es lo
+que el protocolo de actuación se compromete a cumplir.
+
+Un canal que falla no tumba a los demás ni al registro. Si el correo revienta,
+la campana in-app queda igual — es la que la psicóloga sí va a ver cuando entre.
+
+### Cerrar una alerta exige decir qué se hizo
+
+Una alerta que se puede cerrar con un clic se cierra con un clic, y entonces el
+registro no dice si alguien habló con la persona o si sólo quitaron el punto
+rojo de la pantalla. Lo que la organización tiene que poder demostrar es lo
+segundo, no lo primero.
+
+En el centro de alertas las críticas van arriba y, dentro de cada nivel, las MÁS
+VIEJAS primero: una alerta crítica de hace tres días es peor noticia que una de
+hace diez minutos, y una bandeja ordenada por fecha descendente esconde
+justamente la que se está pudriendo.
+
+### El escalonamiento automático no pasa en silencio
+
+Toda acción de `protocolo_reglas` —asignar la segunda etapa de un M-CHAT,
+notificar a un rol, marcar seguimiento— genera alerta y deja bitácora. Un
+sistema que asigna evaluaciones al expediente de alguien sin que nadie se entere
+es un sistema que nadie puede auditar, y lo que está haciendo es una decisión
+clínica.
+
+`RegistroBitacora` no sabía registrar acciones sin actor humano, así que se le
+agregó `registrarAccion()`. El `actor_persona_id` va en NULL, que es lo honesto:
+atribuirlo a quien configuró la regla haría parecer que estuvo ahí.
+
+### Una regla de protocolo corre UNA VEZ por aplicación
+
+`protocolo_ejecuciones` lo garantiza. Sin ella, recalificar volvería a mandarle
+a la familia la liga de la entrevista de seguimiento y al psicólogo la misma
+alarma; a la tercera deja de mirarlas.
+
+### El escalonamiento hereda propósito y autor de la asignación original
+
+Dos defectos que se corrigieron antes de que llegaran a producción:
+
+- **No se busca un propósito con clave "seguimiento".** Depender de una clave
+  mágica haría que el escalonamiento fallara en silencio en cualquier tenant que
+  no la hubiera creado, que son todos hasta que alguien se acuerde. Se reusa el
+  propósito que trajo a la persona hasta aquí, que además lleva el tipo de
+  consentimiento y la vigencia correctos.
+- **La autora no es la persona evaluada.** Un M-CHAT de seguimiento lo pide
+  quien pidió el tamizaje. Poner de autora a la madre que contestó diría en el
+  expediente que ella se lo asignó a su hijo, y eso es falso.
+
+### `permiteAsignar()` era código muerto y la mutación lo destapó
+
+Al mutar `permiteAsignar()` para que devolviera siempre `true`, ninguna prueba
+falló: `CreadorAsignaciones` llama a `motivoDeBloqueo()`. Dos métodos con la
+misma lógica duplicada empiezan iguales y divergen al primer cambio — la
+pantalla diría que sí se puede asignar y la creación lo rechazaría, o mucho
+peor, al revés. Ahora `permiteAsignar()` se define en términos de
+`motivoDeBloqueo()` y no pueden separarse.
+
+### El mensaje de cierre lleva recursos, no resultados
+
+Al terminar un instrumento de sensibilidad 3–4 se muestran los recursos de apoyo
+que el tenant configuró. No dice qué salió —eso es interpretación sin nadie que
+la sostenga— pero sí a dónde acudir si algo de lo que se preguntó dejó a la
+persona mal.
+
+Los escribe el tenant porque un número de emergencia depende del municipio, y
+uno equivocado es peor que ninguno. Y sólo aparece en instrumentos sensibles: un
+test vocacional que cerrara con una línea de crisis convertiría el mensaje en
+decorado que nadie lee.
+
+### El perfil longitudinal agrupa por dominio, no por instrumento
+
+A nadie le importa con qué prueba se midió la ansiedad en 2023, le importa la
+ansiedad. La gráfica es un SVG a mano y no una librería: son cuatro puntos y una
+línea, y meter doscientos kilobytes de dependencia para eso los pagaría cada
+visita.
+
+Sólo se listan los cambios SIGNIFICATIVOS. Marcar todos los movimientos tendría
+el mismo efecto que no marcar ninguno, porque nadie mira una lista en la que
+todo está marcado.
+
+En el resultado individual, una escala `sin_norma` no se dibuja como barra: un
+bruto pintado junto a percentiles se lee como si significara lo mismo, y no
+significa nada fuera de su propia aplicación. Y la advertencia de validez va
+ARRIBA, antes de cualquier número — un puntaje leído sin ella es un puntaje mal
+leído.

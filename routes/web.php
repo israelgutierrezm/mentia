@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Web\AgrupacionController;
 use App\Http\Controllers\Web\AlcanceController;
+use App\Http\Controllers\Web\AlertaController;
 use App\Http\Controllers\Web\AplicacionController;
 use App\Http\Controllers\Web\BateriaController;
 use App\Http\Controllers\Web\CapturaProtocoloController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\Web\MiembroAgrupacionController;
 use App\Http\Controllers\Web\PanelController;
 use App\Http\Controllers\Web\PersonaController;
 use App\Http\Controllers\Web\PortalExpedienteController;
+use App\Http\Controllers\Web\ResultadoController;
 use App\Http\Controllers\Web\RolController;
 use App\Http\Controllers\Web\TutoriaController;
 use App\Http\Controllers\Web\UnidadController;
@@ -140,6 +142,20 @@ Route::middleware(['auth', 'organizacion'])->group(function (): void {
         Route::post('baterias/{bateria}/archivar', [BateriaController::class, 'archivar'])
             ->name('baterias.archivar');
     });
+
+    // ── Alertas ───────────────────────────────────────────────────────────
+    Route::middleware('can:alertas.atender')->group(function (): void {
+        Route::get('alertas', [AlertaController::class, 'index'])->name('alertas.index');
+        Route::post('alertas/{alerta}/atender', [AlertaController::class, 'atender'])
+            ->name('alertas.atender');
+    });
+
+    // ── Resultados ────────────────────────────────────────────────────────
+    // Sin `can:`: decide AccesoService, y la AUDIENCIA se deriva del rol.
+    Route::get('aplicaciones/{aplicacion}/resultados', [ResultadoController::class, 'show'])
+        ->name('resultados.show');
+    Route::get('personas/{persona}/perfil', [ResultadoController::class, 'longitudinal'])
+        ->name('resultados.longitudinal');
 
     // ── Captura de protocolo ──────────────────────────────────────────────
     // Con sesión, a diferencia del resto del motor: lo hace un profesional

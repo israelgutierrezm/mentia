@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Evaluaciones\Servicios;
 
+use App\Domain\Alertas\Servicios\ProtocoloDeActuacion;
 use App\Domain\Catalogo\Modelos\Bloque;
 use App\Domain\Catalogo\Modelos\Reactivo;
 use App\Domain\Catalogo\Modelos\VersionInstrumento;
@@ -163,7 +164,27 @@ class MotorAplicacion
             ])->values()->all(),
 
             'bloque_actual' => $this->bloqueActual($aplicacion)?->bloque->clave,
+
+            /*
+             * Recursos de apoyo al terminar, sólo en instrumentos de
+             * sensibilidad 3–4 (Doc 05 §3). A quien acaba de contestar un
+             * tamizaje de depresión no se le dice qué salió —eso es
+             * interpretación sin nadie que la sostenga— pero sí a dónde puede
+             * acudir. Los escribe el tenant: un número de emergencia depende
+             * del municipio, y uno equivocado es peor que ninguno.
+             */
+            'recursos_apoyo' => $this->recursosDeApoyo($aplicacion),
         ];
+    }
+
+    private function recursosDeApoyo(Aplicacion $aplicacion): ?string
+    {
+        if ($aplicacion->version->instrumento->nivelSensibilidad() < 3) {
+            return null;
+        }
+
+        return app(ProtocoloDeActuacion::class)
+            ->recursosDeApoyo($aplicacion->organizacion);
     }
 
     /**

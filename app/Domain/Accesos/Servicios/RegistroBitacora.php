@@ -55,6 +55,42 @@ class RegistroBitacora
     }
 
     /**
+     * Una acción que hizo EL SISTEMA, sin actor humano.
+     *
+     * Un protocolo de escalonamiento que asigna automáticamente la segunda
+     * etapa de un M-CHAT actúa sobre el expediente de alguien y nadie lo pidió;
+     * tiene que quedar registrado igual que si lo hubiera pedido una persona
+     * (Doc 05 §2). `actor_persona_id` va en NULL, que es lo honesto: atribuirlo
+     * a quien configuró la regla haría parecer que estuvo ahí.
+     *
+     * Se registra como `permitido` porque describe algo que ocurrió, no una
+     * decisión de acceso que pudo negarse.
+     */
+    public function registrarAccion(
+        ?int $organizacionId,
+        string $accion,
+        string $recursoTipo,
+        ?int $recursoId = null,
+        ?int $personaAfectadaId = null,
+        ?string $motivo = null,
+    ): Bitacora {
+        return Bitacora::query()->create([
+            'organizacion_id' => $organizacionId,
+            'actor_persona_id' => null,
+            'accion' => $accion,
+            'recurso_tipo' => Str::limit($recursoTipo, 79, ''),
+            'recurso_id' => $recursoId,
+            'persona_afectada_id' => $personaAfectadaId,
+            'proposito_id' => null,
+            'resultado' => 'permitido',
+            'motivo' => $motivo === null ? null : Str::limit($motivo, 159, ''),
+            'ip' => null,
+            'user_agent' => null,
+            'registrado_en' => Carbon::now(),
+        ]);
+    }
+
+    /**
      * El tipo del recurso, en corto y estable.
      *
      * Se guarda el nombre de clase sin namespace: `Aplicacion`, no
