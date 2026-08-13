@@ -32,6 +32,7 @@ class DatabaseSeeder extends Seeder
                 PlantillasRolSeeder::class,
                 ExpedienteSeeder::class,
                 ConsentimientosSeeder::class,
+                CatalogoSeeder::class,
             ]);
         });
     }

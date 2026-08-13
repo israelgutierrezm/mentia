@@ -12,6 +12,7 @@
         "laravel/horizon": "^5.30",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.10.1",
+        "phpoffice/phpspreadsheet": "^5.9",
         "predis/predis": "^2.2",
         "spatie/laravel-activitylog": "^4.12 || ^5.0",
         "spatie/laravel-medialibrary": "^11.23",
